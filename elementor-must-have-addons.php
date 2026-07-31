@@ -3,7 +3,8 @@
  * Plugin Name: Elementor Must-have Addons
  * Description: Custom premium widgets for Elementor, including 3D Video Scroll and Simple Submission Form.
  * Version:     1.0.0
- * Author:      Akash Mali
+ * Author:      Akash Mali <maliakash6198@gmail.com>
+ * Author URI:  https://github.com/Akashmali6198
  * Text Domain: elementor-must-have-addons
  * Domain Path: /languages
  */
