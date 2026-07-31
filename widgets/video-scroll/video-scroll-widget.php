@@ -45,7 +45,7 @@ class Elementor_Video_Scroll_Widget extends \Elementor\Widget_Base {
 				'label'       => esc_html__( 'Video URL', 'elementor-must-have-addons' ),
 				'type'        => \Elementor\Controls_Manager::MEDIA,
 				'default'     => [
-					'url' => 'https://akashmali.info/wp-content/uploads/2026/07/new-realestate-scroll-30mb.mp4',
+					'url' => 'https://tagmedia.site/wp-content/uploads/2026/07/new-realestate-scroll-30mb.mp4',
 				],
 				'media_types' => [ 'video' ],
 				'description' => esc_html__( 'Note: A 15FPS video is recommended for optimal smooth scrolling (maximum file size around 30MB).', 'elementor-must-have-addons' ),
@@ -247,21 +247,28 @@ class Elementor_Video_Scroll_Widget extends \Elementor\Widget_Base {
 	}
 
 	protected function render() {
+		// Ensure assets load on the frontend (and Elementor preview).
+		wp_enqueue_script( 'emha-video-scroll-script' );
+		wp_enqueue_style( 'emha-video-scroll-style' );
+
 		$settings = $this->get_settings_for_display();
 
-		$video_url  = ! empty( $settings['video_url']['url'] ) ? esc_url( $settings['video_url']['url'] ) : '';
-		$poster_url = ! empty( $settings['poster_url']['url'] ) ? esc_url( $settings['poster_url']['url'] ) : '';
+		$video_url  = ! empty( $settings['video_url']['url'] ) ? $settings['video_url']['url'] : '';
+		$poster_url = ! empty( $settings['poster_url']['url'] ) ? $settings['poster_url']['url'] : '';
 
 		if ( is_ssl() ) {
 			$video_url  = str_replace( 'http://', 'https://', $video_url );
 			$poster_url = str_replace( 'http://', 'https://', $poster_url );
 		}
-		$seo_title  = ! empty( $settings['seo_title'] ) ? esc_html( $settings['seo_title'] ) : '';
 
-		$scenes = $settings['scenes_list'];
+		$video_url  = esc_url( $video_url );
+		$poster_url = esc_url( $poster_url );
+		$seo_title  = ! empty( $settings['seo_title'] ) ? $settings['seo_title'] : '';
+
+		$scenes      = ! empty( $settings['scenes_list'] ) ? $settings['scenes_list'] : [];
 		$scene_times = [];
 
-		foreach ( $scenes as $index => $scene ) {
+		foreach ( $scenes as $scene ) {
 			$scene_times[] = isset( $scene['scene_time'] ) ? floatval( $scene['scene_time'] ) : 0;
 		}
 
@@ -271,21 +278,27 @@ class Elementor_Video_Scroll_Widget extends \Elementor\Widget_Base {
 			'fps'        => isset( $settings['video_fps'] ) ? intval( $settings['video_fps'] ) : 15,
 		];
 		?>
-		<section class="rs-scroll-hero" data-emha-config="<?php echo esc_attr( json_encode( $config ) ); ?>">
+		<section class="rs-scroll-hero" data-emha-config="<?php echo esc_attr( wp_json_encode( $config ) ); ?>">
 			<div class="rs-scroll-stage">
 				<?php if ( $video_url ) : ?>
-					<video class="rs-scroll-video"
+					<?php
+					/*
+					 * Markup matches complete-scroll-video-demo.html.
+					 * `autoplay muted` unlocks the media pipeline; JS immediately pauses
+					 * and drives frames only via scroll (currentTime scrubbing).
+					 */
+					?>
+					<video
+						class="rs-scroll-video"
 						src="<?php echo esc_url( $video_url ); ?>"
 						preload="auto"
 						muted
 						playsinline
 						webkit-playsinline
-						disablepictureinpicture
-						disableremoteplayback
+						autoplay
 						type="video/mp4"
 						poster="<?php echo esc_url( $poster_url ); ?>"
-						aria-label="<?php echo esc_attr( $seo_title ); ?>"
-						data-emha-scroll-video="1">
+						aria-label="<?php echo esc_attr( $seo_title ); ?>">
 					</video>
 				<?php endif; ?>
 
@@ -295,27 +308,23 @@ class Elementor_Video_Scroll_Widget extends \Elementor\Widget_Base {
 				<?php endif; ?>
 
 				<div class="rs-scroll-copy">
-					<?php foreach ( $scenes as $index => $scene ) : 
-						$this->add_render_attribute( 'scene_' . $index, 'class', 'rs-scroll-scene' );
-						if ( $index === 0 ) {
-							$this->add_render_attribute( 'scene_' . $index, 'class', 'rs-scene-active' );
-						}
-						
-						$cta_url = ! empty( $scene['scene_cta_link']['url'] ) ? esc_url( $scene['scene_cta_link']['url'] ) : '';
+					<?php foreach ( $scenes as $index => $scene ) :
+						$cta_url  = ! empty( $scene['scene_cta_link']['url'] ) ? $scene['scene_cta_link']['url'] : '';
+						$cta_text = ! empty( $scene['scene_cta_text'] ) ? $scene['scene_cta_text'] : '';
 						?>
-						<article <?php $this->print_render_attribute_string( 'scene_' . $index ); ?>>
+						<article class="rs-scroll-scene<?php echo 0 === $index ? ' rs-scene-active' : ''; ?>">
 							<?php if ( ! empty( $scene['scene_kicker'] ) ) : ?>
 								<p class="rs-scene-kicker"><?php echo esc_html( $scene['scene_kicker'] ); ?></p>
 							<?php endif; ?>
-							
+
 							<?php if ( ! empty( $scene['scene_title'] ) ) : ?>
 								<h2 class="rs-scene-title"><?php echo wp_kses_post( nl2br( $scene['scene_title'] ) ); ?></h2>
 							<?php endif; ?>
-							
+
 							<p class="rs-scene-copy"></p>
-							
-							<?php if ( ! empty( $scene['scene_cta_text'] ) && $cta_url ) : ?>
-								<a class="rs-scene-cta" href="<?php echo esc_url( $cta_url ); ?>"><?php echo esc_html( $scene['scene_cta_text'] ); ?></a>
+
+							<?php if ( $cta_text && $cta_url ) : ?>
+								<a class="rs-scene-cta" href="<?php echo esc_url( $cta_url ); ?>"><?php echo esc_html( $cta_text ); ?></a>
 							<?php endif; ?>
 						</article>
 					<?php endforeach; ?>

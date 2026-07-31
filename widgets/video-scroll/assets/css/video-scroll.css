@@ -5,6 +5,35 @@
   --rs-deep: #050505;
 }
 
+/*
+ * Elementor sticky fix:
+ * Parent overflow/transform/height clipping breaks position:sticky and the 700vh track.
+ */
+.elementor-widget-emha-video-scroll,
+.elementor-widget-emha-video-scroll > .elementor-widget-container,
+.elementor-element.elementor-widget-emha-video-scroll,
+.e-con:has(.rs-scroll-hero),
+.e-con-inner:has(.rs-scroll-hero),
+.elementor-section:has(.rs-scroll-hero),
+.elementor-container:has(.rs-scroll-hero),
+.elementor-column:has(.rs-scroll-hero),
+.elementor-widget-wrap:has(.rs-scroll-hero),
+.elementor-column-wrap:has(.rs-scroll-hero) {
+  overflow: visible !important;
+  max-height: none !important;
+  height: auto !important;
+  transform: none !important;
+  will-change: auto !important;
+  filter: none !important;
+  perspective: none !important;
+  contain: none !important;
+}
+
+.elementor-widget-emha-video-scroll,
+.elementor-widget-emha-video-scroll > .elementor-widget-container {
+  width: 100%;
+}
+
 /* Scroll-controlled property-film hero */
 .rs-scroll-hero {
   width: min(1380px, calc(100% - 56px));
@@ -12,6 +41,8 @@
   margin: 0 auto;
   position: relative;
   background: #050505;
+  display: block;
+  max-width: 100%;
 }
 
 .rs-scroll-stage {
@@ -24,6 +55,7 @@
   border-radius: 0 0 10px 10px;
   background: #050505;
   isolation: isolate;
+  width: 100%;
 }
 
 .rs-scroll-video {
@@ -40,6 +72,8 @@
   backface-visibility: hidden;
   will-change: transform;
   contain: paint;
+  /* Prevent native media UI / accidental controls */
+  pointer-events: none;
 }
 
 .rs-scroll-shade {
@@ -206,6 +240,10 @@
   box-shadow: 0 12px 36px rgba(0, 0, 0, .32);
 }
 
+.rs-scroll-stage.rs-video-error .rs-scroll-shade:after {
+  content: "VIDEO FAILED TO LOAD";
+}
+
 /* Vertical frame navigator */
 html.rs-video-scrubbing {
   scroll-behavior: auto !important;
@@ -301,13 +339,13 @@ html.rs-video-scrubbing {
   text-align: center;
 }
 
-@media(max-width:1050px) and (min-width:781px) {
+@media (max-width: 1050px) and (min-width: 781px) {
   .rs-scroll-scene:nth-child(even) {
     right: 160px;
   }
 }
 
-@media(max-width:780px) {
+@media (max-width: 780px) {
   .rs-scroll-hero {
     width: 100%;
     height: 630vh;
@@ -378,7 +416,7 @@ html.rs-video-scrubbing {
   }
 }
 
-@media(max-width:480px) {
+@media (max-width: 480px) {
   .rs-scroll-hero {
     height: 580vh;
   }
@@ -405,7 +443,7 @@ html.rs-video-scrubbing {
   }
 }
 
-@media(prefers-reduced-motion:reduce) {
+@media (prefers-reduced-motion: reduce) {
   .rs-scroll-hero {
     height: auto;
   }
