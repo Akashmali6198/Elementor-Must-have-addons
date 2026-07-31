@@ -68,7 +68,7 @@ class Elementor_Video_Scroll_Widget extends \Elementor\Widget_Base {
 			[
 				'label'       => esc_html__( 'SEO/Accessibility Title', 'elementor-must-have-addons' ),
 				'type'        => \Elementor\Controls_Manager::TEXT,
-				'default'     => esc_html__( 'Premium Multifamily Properties for Sale and Rent', 'elementor-must-have-addons' ),
+				'default'     => esc_html__( 'Multifamily Properties for Sale and Rent', 'elementor-must-have-addons' ),
 				'label_block' => true,
 			]
 		);

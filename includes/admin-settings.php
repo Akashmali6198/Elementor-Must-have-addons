@@ -210,7 +210,7 @@ class EMHA_Admin_Settings {
 
 		<div class="emha-admin-wrap">
 			<div class="emha-header">
-				<h1>Elementor Must-have Addons <span>v1.0.3</span></h1>
+				<h1>Elementor Must-have Addons <span>v1.0.4</span></h1>
 			</div>
 
 			<div class="emha-nav-tabs">
@@ -233,7 +233,7 @@ class EMHA_Admin_Settings {
 						<div class="emha-switch-card">
 							<div class="emha-switch-info">
 								<h3>3D Video Scroll Widget</h3>
-								<p>Enables the interactive, premium scroll-controlled cinematic video highlight section.</p>
+								<p>Enables the interactive, scroll-controlled cinematic video highlight section.</p>
 							</div>
 							<label class="emha-switch">
 								<input type="checkbox" name="emha_active_widgets[video-scroll]" value="1" <?php checked( isset( $active_widgets['video-scroll'] ) && $active_widgets['video-scroll'] == '1' ); ?>>
@@ -244,7 +244,7 @@ class EMHA_Admin_Settings {
 						<div class="emha-switch-card">
 							<div class="emha-switch-info">
 								<h3>Simple Submission Form</h3>
-								<p>Enables custom premium email capture forms that send alerts and logs data locally.</p>
+								<p>Enables custom email capture forms that send alerts and logs data locally.</p>
 							</div>
 							<label class="emha-switch">
 								<input type="checkbox" name="emha_active_widgets[simple-form]" value="1" <?php checked( isset( $active_widgets['simple-form'] ) && $active_widgets['simple-form'] == '1' ); ?>>

@@ -1,30 +1,19 @@
 /**
- * 3D Video Scroll — scroll-scrub engine.
- * Ported from complete-scroll-video-demo.html and adapted for Elementor multi-instance.
+ * 3D Video Scroll — high-performance scroll-scrub engine.
+ *
+ * Lag later in the scroll is usually from:
+ *  - stacked / interrupted video seeks
+ *  - seeking to every tiny scroll delta instead of whole frames
+ *  - expensive layout reads + DOM writes on every animation frame
+ *
+ * This build: single target seek queue, frame-snap, cached metrics,
+ * UI updates only when frame/scene changes, scrub from smoothScroll while wheeling.
  */
 (function ($) {
     'use strict';
 
     function clamp(value, min, max) {
         return Math.max(min, Math.min(max, value));
-    }
-
-    /**
-     * Document Y of an element (works inside nested Elementor wrappers).
-     */
-    function documentOffsetTop(el) {
-        var top = 0;
-        var node = el;
-        while (node) {
-            top += node.offsetTop || 0;
-            node = node.offsetParent;
-        }
-        // Fallback if offsetParent chain is broken by transforms.
-        if (!top) {
-            var rect = el.getBoundingClientRect();
-            top = rect.top + (window.pageYOffset || window.scrollY || 0);
-        }
-        return top;
     }
 
     function parseConfig(scrollHero) {
@@ -66,7 +55,6 @@
             return;
         }
 
-        // Mark both widget root and hero so re-inits are skipped.
         root.setAttribute('data-emha-vs-ready', '1');
         scrollHero.setAttribute('data-emha-vs-ready', '1');
 
@@ -74,6 +62,7 @@
         var sceneTimes = config.sceneTimes;
         var duration = config.duration;
         var sourceFps = config.fps;
+        var frameStep = 1 / sourceFps;
 
         var scrollStage = scrollHero.querySelector('.rs-scroll-stage');
         var video = scrollHero.querySelector('.rs-scroll-video');
@@ -84,16 +73,32 @@
         }
 
         var totalFrames = Math.max(1, Math.round(duration * sourceFps));
-        var playbackEnd = Math.max(0.1, duration - 0.08);
-        var framePending = false;
-        var desiredTime = 0;
-        var virtualScroll = window.scrollY || window.pageYOffset || 0;
+        var playbackEnd = Math.max(frameStep, duration - 0.08);
+
+        // --- scroll / wheel state ---
+        var virtualScroll = window.pageYOffset || window.scrollY || 0;
         var smoothScroll = virtualScroll;
         var wheelFrame = 0;
         var wheelActive = false;
         var navDragging = false;
 
-        // Create vertical frame navigator (same as demo).
+        // --- scrub / seek state (performance critical) ---
+        var rafPending = false;
+        var targetTime = 0;
+        var targetFrame = -1;
+        var appliedFrame = -1;
+        var seekInFlight = false;
+        var activeScene = -1;
+        var lastNavFrame = -1;
+        var lastProgressBucket = -1;
+        var pausedEnsured = false;
+
+        // --- cached layout metrics (avoid offsetParent walks every frame) ---
+        var metrics = { start: 0, range: 1, end: 1 };
+        var metricsValid = false;
+        var resizeTimer = 0;
+
+        // Frame navigator
         var videoNav = document.createElement('div');
         videoNav.className = 'rs-video-nav';
         videoNav.setAttribute('aria-label', 'Property video navigator');
@@ -111,12 +116,26 @@
         var navTrack = videoNav.querySelector('.rs-video-track');
         var navProgress = videoNav.querySelector('.rs-video-progress');
 
-        function heroMetrics() {
-            // Match demo intent: use layout position/height of the tall hero track.
-            var start = documentOffsetTop(scrollHero);
-            var height = scrollHero.offsetHeight || scrollHero.getBoundingClientRect().height;
+        function recomputeMetrics() {
+            // getBoundingClientRect + page offset is accurate inside Elementor wrappers.
+            var rect = scrollHero.getBoundingClientRect();
+            var pageY = window.pageYOffset || window.scrollY || 0;
+            var start = rect.top + pageY;
+            var height = scrollHero.offsetHeight || rect.height;
             var range = Math.max(1, height - window.innerHeight);
-            return { start: start, range: range, end: start + range };
+
+            metrics.start = start;
+            metrics.range = range;
+            metrics.end = start + range;
+            metricsValid = true;
+            return metrics;
+        }
+
+        function getMetrics() {
+            if (!metricsValid) {
+                return recomputeMetrics();
+            }
+            return metrics;
         }
 
         function sceneIndexAt(time) {
@@ -130,27 +149,41 @@
             return active;
         }
 
-        function setScene(time) {
-            var active = sceneIndexAt(time);
-            scenes.forEach(function (scene, index) {
-                scene.classList.toggle('rs-scene-active', index === active);
-            });
+        function setSceneIfChanged(time) {
+            var next = sceneIndexAt(time);
+            if (next === activeScene) {
+                return;
+            }
+            activeScene = next;
+            for (var i = 0; i < scenes.length; i++) {
+                // classList.toggle with force avoids unnecessary style recalc when unchanged
+                scenes[i].classList.toggle('rs-scene-active', i === next);
+            }
         }
 
-        function updateNavigator(progress) {
+        function updateNavigatorIfChanged(progress) {
             var safeProgress = clamp(progress, 0, 1);
-            var percent = (safeProgress * 100).toFixed(3) + '%';
+            // Bucket progress to ~0.1% so we don't thrash CSS vars every pixel.
+            var bucket = (safeProgress * 1000) | 0;
             var frame = Math.min(
                 totalFrames,
                 Math.max(1, Math.round(safeProgress * (totalFrames - 1)) + 1)
             );
 
-            scrollStage.style.setProperty('--scroll-progress', String(safeProgress));
+            if (bucket === lastProgressBucket && frame === lastNavFrame) {
+                return;
+            }
+            lastProgressBucket = bucket;
+            lastNavFrame = frame;
+
+            var percent = (safeProgress * 100).toFixed(2) + '%';
+
+            scrollStage.style.setProperty('--scroll-progress', safeProgress.toFixed(4));
             videoNav.style.setProperty('--video-progress', percent);
+
             if (navTrack) {
                 navTrack.setAttribute('aria-valuenow', String(frame));
             }
-
             if (navProgress) {
                 navProgress.textContent =
                     String(frame).padStart(3, '0') +
@@ -159,53 +192,107 @@
             }
         }
 
+        /**
+         * Issue at most one seek at a time. Always jump to the *latest* target frame
+         * when the previous seek finishes (drop intermediate frames = no lag pile-up).
+         */
+        function issueSeek() {
+            if (seekInFlight || video.readyState < 1) {
+                return;
+            }
+
+            if (targetFrame === appliedFrame) {
+                return;
+            }
+
+            var nextTime = Math.min(playbackEnd, Math.max(0, targetFrame * frameStep));
+
+            // Already on (or extremely close to) the target frame.
+            if (Math.abs((video.currentTime || 0) - nextTime) < frameStep * 0.35) {
+                appliedFrame = targetFrame;
+                return;
+            }
+
+            seekInFlight = true;
+            appliedFrame = targetFrame;
+
+            try {
+                // Prefer precise frame scrub; fastSeek is approximate and can look jumpy.
+                video.currentTime = nextTime;
+            } catch (error) {
+                seekInFlight = false;
+                appliedFrame = -1;
+            }
+        }
+
+        function onSeeked() {
+            seekInFlight = false;
+
+            // If user scrolled further while we were seeking, catch up to latest frame only.
+            if (targetFrame !== appliedFrame) {
+                issueSeek();
+            }
+        }
+
+        function ensurePaused() {
+            if (!pausedEnsured || !video.paused) {
+                try {
+                    if (!video.paused) {
+                        video.pause();
+                    }
+                } catch (e) { /* ignore */ }
+                pausedEnsured = true;
+            }
+        }
+
         function scrubVideo() {
-            framePending = false;
+            rafPending = false;
+
             if (video.readyState < 1) {
                 return;
             }
 
-            // Scroll controls the frame — never free-play.
-            if (!video.paused) {
-                try {
-                    video.pause();
-                } catch (e) { /* ignore */ }
-            }
+            ensurePaused();
 
-            var metrics = heroMetrics();
-            var scrollY = window.scrollY || window.pageYOffset || 0;
-            var progress = clamp((scrollY - metrics.start) / metrics.range, 0, 1);
+            var m = getMetrics();
+            // While custom wheel smoothing runs, use the animated scroll position
+            // (window.scrollY can lag a frame behind scrollTo).
+            var scrollY = wheelActive
+                ? smoothScroll
+                : (window.pageYOffset || window.scrollY || 0);
+
+            var progress = clamp((scrollY - m.start) / m.range, 0, 1);
             var exactTime = progress * playbackEnd;
 
-            // Snap seeking to source FPS frame intervals (demo: 15fps).
-            desiredTime = Math.min(
-                playbackEnd,
-                Math.round(exactTime * sourceFps) / sourceFps
+            // Snap to whole source frames — never seek to sub-frame times.
+            targetFrame = Math.min(
+                totalFrames - 1,
+                Math.max(0, Math.round(exactTime * sourceFps))
             );
+            targetTime = targetFrame * frameStep;
 
-            updateNavigator(progress);
-            setScene(exactTime);
+            // UI can stay smooth even if the video decoder is catching up.
+            updateNavigatorIfChanged(progress);
+            setSceneIfChanged(exactTime);
 
-            if (!video.seeking && Math.abs(video.currentTime - desiredTime) > 0.025) {
-                try {
-                    video.currentTime = desiredTime;
-                } catch (error) { /* ignore seek errors */ }
-            }
+            issueSeek();
         }
 
         function requestScrub() {
-            if (!framePending) {
-                framePending = true;
+            if (!rafPending) {
+                rafPending = true;
                 requestAnimationFrame(scrubVideo);
             }
         }
 
         function finishSmoothScroll() {
             smoothScroll = virtualScroll;
-            window.scrollTo({ top: smoothScroll, left: 0, behavior: 'auto' });
+            window.scrollTo(0, smoothScroll);
             wheelActive = false;
             wheelFrame = 0;
             document.documentElement.classList.remove('rs-video-scrubbing');
+            // Layout start can drift slightly after long custom scrolls.
+            metricsValid = false;
             requestScrub();
         }
 
@@ -213,31 +300,33 @@
             wheelFrame = 0;
             var difference = virtualScroll - smoothScroll;
 
-            if (Math.abs(difference) < 0.28) {
+            if (Math.abs(difference) < 0.4) {
                 finishSmoothScroll();
                 return;
             }
 
-            var ease = navDragging ? 0.085 : 0.095;
-            var maxStep = navDragging ? 28 : 40;
+            // More responsive easing than the original so scroll doesn't "trail"
+            // far ahead of the video decoder.
+            var ease = navDragging ? 0.16 : 0.18;
+            var maxStep = navDragging ? 48 : 64;
 
             smoothScroll += clamp(difference * ease, -maxStep, maxStep);
-            window.scrollTo({ top: smoothScroll, left: 0, behavior: 'auto' });
+            window.scrollTo(0, smoothScroll);
             requestScrub();
             wheelFrame = requestAnimationFrame(animateWheel);
         }
 
         function moveToProgress(progress) {
-            var metrics = heroMetrics();
+            var m = getMetrics();
 
             if (!wheelActive) {
-                smoothScroll = window.scrollY || window.pageYOffset || 0;
+                smoothScroll = window.pageYOffset || window.scrollY || 0;
                 virtualScroll = smoothScroll;
                 wheelActive = true;
             }
 
             document.documentElement.classList.add('rs-video-scrubbing');
-            virtualScroll = metrics.start + clamp(progress, 0, 1) * metrics.range;
+            virtualScroll = m.start + clamp(progress, 0, 1) * m.range;
 
             if (!wheelFrame) {
                 wheelFrame = requestAnimationFrame(animateWheel);
@@ -245,7 +334,6 @@
         }
 
         function handleHeroWheel(event) {
-            // Desktop-only custom wheel scrub (same as demo).
             if (
                 window.innerWidth <= 780 ||
                 event.ctrlKey ||
@@ -254,19 +342,17 @@
                 return;
             }
 
-            var metrics = heroMetrics();
-            var current = window.scrollY || window.pageYOffset || 0;
-            var inside =
-                current >= metrics.start - 2 &&
-                current <= metrics.end + 2;
+            var m = getMetrics();
+            var current = window.pageYOffset || window.scrollY || 0;
+            var inside = current >= m.start - 2 && current <= m.end + 2;
 
             if (!inside) {
                 return;
             }
 
             if (
-                (event.deltaY < 0 && current <= metrics.start + 1) ||
-                (event.deltaY > 0 && current >= metrics.end - 1)
+                (event.deltaY < 0 && current <= m.start + 1) ||
+                (event.deltaY > 0 && current >= m.end - 1)
             ) {
                 return;
             }
@@ -280,10 +366,12 @@
             }
 
             document.documentElement.classList.add('rs-video-scrubbing');
+
+            // Slightly stronger wheel mapping for snappier scrub feel.
             virtualScroll = clamp(
-                virtualScroll + event.deltaY * 0.72,
-                metrics.start,
-                metrics.end
+                virtualScroll + event.deltaY * 0.85,
+                m.start,
+                m.end
             );
 
             if (!wheelFrame) {
@@ -343,9 +431,9 @@
             }
             event.preventDefault();
 
-            var metrics = heroMetrics();
-            var scrollY = window.scrollY || window.pageYOffset || 0;
-            var current = clamp((scrollY - metrics.start) / metrics.range, 0, 1);
+            var m = getMetrics();
+            var scrollY = window.pageYOffset || window.scrollY || 0;
+            var current = clamp((scrollY - m.start) / m.range, 0, 1);
             var jump = event.key.indexOf('Page') === 0 ? 0.1 : 0.025;
 
             var next;
@@ -363,32 +451,35 @@
         });
 
         function activateVideo() {
+            if (scrollStage.classList.contains('rs-video-ready') && Number.isFinite(video.duration) && video.duration > 0) {
+                // already activated; refresh end bound if duration became available
+            }
+
             var mediaDuration = Number.isFinite(video.duration) && video.duration > 0
                 ? video.duration
                 : duration;
 
             playbackEnd = Math.min(
                 duration - 0.08,
-                Math.max(0.1, mediaDuration - 0.08)
+                Math.max(frameStep, mediaDuration - 0.08)
             );
 
-            // Demo pattern: ensure media is paused after load — scrub only.
-            try {
-                video.pause();
-            } catch (e) { /* ignore */ }
+            ensurePaused();
 
             try {
-                video.currentTime = 0.01;
+                video.currentTime = 0;
             } catch (error) { /* ignore */ }
 
+            appliedFrame = 0;
+            targetFrame = 0;
+            seekInFlight = false;
+
             scrollStage.classList.add('rs-video-ready');
+            metricsValid = false;
+            recomputeMetrics();
             requestScrub();
         }
 
-        /**
-         * Mobile unlock (from demo): brief play → immediate pause so seeking works.
-         * Does not leave the video playing.
-         */
         function primeVideo() {
             var playback;
             try {
@@ -400,20 +491,17 @@
             if (playback && typeof playback.then === 'function') {
                 playback
                     .then(function () {
-                        try {
-                            video.pause();
-                        } catch (e2) { /* ignore */ }
+                        pausedEnsured = false;
+                        ensurePaused();
                         requestScrub();
                     })
-                    .catch(function () { /* autoplay blocked — scrub still works on many browsers */ });
+                    .catch(function () { /* ignore */ });
             } else {
-                try {
-                    video.pause();
-                } catch (e3) { /* ignore */ }
+                pausedEnsured = false;
+                ensurePaused();
             }
         }
 
-        // Match demo media flags.
         video.muted = true;
         video.defaultMuted = true;
         video.playsInline = true;
@@ -421,52 +509,22 @@
         video.controls = false;
         video.loop = false;
 
-        // If browser starts autoplay (attribute present), pause as soon as it plays.
-        var hasPrimed = false;
+        // Disable picture-in-picture / remote playback where supported.
+        try {
+            video.disablePictureInPicture = true;
+        } catch (e) { /* ignore */ }
+
         video.addEventListener('playing', function () {
-            // Allow only the short mobile prime window; otherwise always pause for scrub mode.
-            if (!hasPrimed) {
-                try {
-                    video.pause();
-                } catch (e) { /* ignore */ }
-                requestScrub();
-            }
+            pausedEnsured = false;
+            ensurePaused();
         });
 
-        document.documentElement.addEventListener(
-            'touchstart',
-            function () {
-                hasPrimed = true;
-                primeVideo();
-                // Reset prime flag after microtask so subsequent free-play is blocked.
-                setTimeout(function () {
-                    hasPrimed = false;
-                    try {
-                        video.pause();
-                    } catch (e) { /* ignore */ }
-                    requestScrub();
-                }, 120);
-            },
-            { once: true, passive: true }
-        );
+        video.addEventListener('seeked', onSeeked, { passive: true });
 
-        if (video.readyState >= 1) {
-            activateVideo();
-        } else {
-            video.addEventListener('loadedmetadata', activateVideo, { once: true });
-            // Some browsers fire canplay instead.
-            video.addEventListener('loadeddata', activateVideo, { once: true });
-        }
-
-        video.addEventListener(
-            'seeked',
-            function () {
-                if (Math.abs(video.currentTime - desiredTime) > 0.025) {
-                    requestScrub();
-                }
-            },
-            { passive: true }
-        );
+        // If a seek is aborted / stalled, clear the in-flight lock.
+        video.addEventListener('seeking', function () {
+            seekInFlight = true;
+        }, { passive: true });
 
         video.addEventListener(
             'error',
@@ -476,7 +534,31 @@
             { once: true }
         );
 
-        // Kick load (demo does this).
+        document.documentElement.addEventListener(
+            'touchstart',
+            function () {
+                primeVideo();
+            },
+            { once: true, passive: true }
+        );
+
+        if (video.readyState >= 1) {
+            activateVideo();
+        } else {
+            video.addEventListener('loadedmetadata', activateVideo, { once: true });
+            video.addEventListener('loadeddata', function () {
+                if (!scrollStage.classList.contains('rs-video-ready')) {
+                    activateVideo();
+                }
+            }, { once: true });
+        }
+
+        // Warm the decoder a bit: after metadata, nudge one frame forward then back.
+        video.addEventListener('canplay', function () {
+            ensurePaused();
+            requestScrub();
+        }, { once: true });
+
         try {
             video.load();
         } catch (e) { /* ignore */ }
@@ -487,7 +569,7 @@
             'scroll',
             function () {
                 if (!wheelActive) {
-                    virtualScroll = window.scrollY || window.pageYOffset || 0;
+                    virtualScroll = window.pageYOffset || window.scrollY || 0;
                     smoothScroll = virtualScroll;
                 }
                 requestScrub();
@@ -498,15 +580,30 @@
         window.addEventListener(
             'resize',
             function () {
-                virtualScroll = window.scrollY || window.pageYOffset || 0;
-                smoothScroll = virtualScroll;
-                requestScrub();
+                // Debounce metric recompute; resize can fire a lot on mobile chrome.
+                window.clearTimeout(resizeTimer);
+                resizeTimer = window.setTimeout(function () {
+                    metricsValid = false;
+                    recomputeMetrics();
+                    virtualScroll = window.pageYOffset || window.scrollY || 0;
+                    smoothScroll = virtualScroll;
+                    requestScrub();
+                }, 80);
             },
             { passive: true }
         );
 
-        setScene(0);
-        updateNavigator(0);
+        // Invalidate cached start when fonts/images reflow the page.
+        if (typeof ResizeObserver !== 'undefined') {
+            var ro = new ResizeObserver(function () {
+                metricsValid = false;
+            });
+            ro.observe(scrollHero);
+        }
+
+        recomputeMetrics();
+        setSceneIfChanged(0);
+        updateNavigatorIfChanged(0);
         requestScrub();
     }
 
@@ -520,7 +617,6 @@
             initVideoScrollInstance(heroes[i]);
         }
 
-        // Elementor widget wrappers (in case hero query is nested oddly).
         var widgets = scope.querySelectorAll
             ? scope.querySelectorAll('.elementor-widget-emha-video-scroll')
             : [];
@@ -529,11 +625,13 @@
         }
     }
 
+    var hooksBound = false;
+
     function boot() {
         findAndInit(document);
 
-        // Elementor frontend hook (editor + frontend).
-        if (window.elementorFrontend && elementorFrontend.hooks) {
+        if (!hooksBound && window.elementorFrontend && elementorFrontend.hooks) {
+            hooksBound = true;
             elementorFrontend.hooks.addAction(
                 'frontend/element_ready/emha-video-scroll.default',
                 function ($scope) {
@@ -545,7 +643,6 @@
         }
     }
 
-    // Multiple boot paths so init never depends on a single race.
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', boot);
     } else {
@@ -560,7 +657,6 @@
         boot();
     });
 
-    // Elementor preview re-renders.
     $(window).on('elementor/popup/show', function () {
         setTimeout(function () {
             findAndInit(document);

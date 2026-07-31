@@ -1,6 +1,6 @@
 # Elementor Must-have Addons
 
-**Elementor Must-have Addons** is a premium, lightweight WordPress plugin that extends the Elementor Page Builder with high-end, modern interactive widgets.
+**Elementor Must-have Addons** is a lightweight WordPress plugin that extends the Elementor Page Builder with high-end, modern interactive widgets.
 
 Developed by **Akash Mali** (<maliakash6198@gmail.com>).
 
