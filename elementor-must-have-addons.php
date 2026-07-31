@@ -166,8 +166,15 @@ final class Elementor_Must_Have_Addons {
 			self::VERSION,
 			true
 		);
+		$ajax_url = admin_url( 'admin-ajax.php' );
+		if ( is_ssl() ) {
+			$ajax_url = str_replace( 'http://', 'https://', $ajax_url );
+		} else {
+			$ajax_url = str_replace( 'https://', 'http://', $ajax_url );
+		}
+
 		wp_localize_script( 'emha-simple-form-script', 'emha_ajax', [
-			'ajax_url' => admin_url( 'admin-ajax.php', 'relative' ),
+			'ajax_url' => $ajax_url,
 			'nonce'    => wp_create_nonce( 'emha_form_nonce' )
 		] );
 	}

@@ -1,5 +1,5 @@
 (function ($) {
-    $(window).on('elementor/frontend/init', function () {
+    const initSimpleForm = function () {
         elementorFrontend.hooks.addAction('frontend/element_ready/emha-simple-form.default', function ($scope) {
             const $form = $scope.find('.emha-ajax-form');
             const $msg = $scope.find('.emha-form-response-msg');
@@ -56,5 +56,11 @@
                 });
             });
         });
-    });
+    };
+
+    if (window.elementorFrontend) {
+        initSimpleForm();
+    } else {
+        $(window).on('elementor/frontend/init', initSimpleForm);
+    }
 })(jQuery);

@@ -1,5 +1,5 @@
 (function ($) {
-    $(window).on('elementor/frontend/init', function () {
+    const initVideoScroll = function () {
         elementorFrontend.hooks.addAction('frontend/element_ready/emha-video-scroll.default', function ($scope) {
             const scrollHero = $scope.find('.rs-scroll-hero')[0];
             if (!scrollHero) return;
@@ -383,5 +383,11 @@
             updateNavigator(0);
             requestScrub();
         });
-    });
+    };
+
+    if (window.elementorFrontend) {
+        initVideoScroll();
+    } else {
+        $(window).on('elementor/frontend/init', initVideoScroll);
+    }
 })(jQuery);
