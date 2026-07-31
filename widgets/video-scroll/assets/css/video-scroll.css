@@ -36,7 +36,7 @@
 
 /* Scroll-controlled property-film hero */
 .rs-scroll-hero {
-  width: min(1380px, calc(100% - 56px));
+  width: 100%;
   height: 700vh;
   margin: 0 auto;
   position: relative;
@@ -52,7 +52,7 @@
   height: 100vh;
   min-height: 620px;
   overflow: hidden;
-  border-radius: 0 0 10px 10px;
+  border-radius: 0;
   background: #050505;
   isolation: isolate;
   width: 100%;
@@ -67,12 +67,12 @@
   object-position: center center;
   z-index: 0;
   background: #050505;
-  transition: opacity .35s ease;
+  /* No opacity transition — saves compositor work while scrubbing */
   transform: translateZ(0);
   backface-visibility: hidden;
-  will-change: transform;
+  /* Own compositor layer for smoother frame paints while seeking */
+  will-change: contents;
   contain: paint;
-  /* Prevent native media UI / accidental controls */
   pointer-events: none;
 }
 
@@ -125,13 +125,14 @@
   background: transparent;
   opacity: 0;
   visibility: hidden;
-  filter: blur(4px);
-  transform: translate3d(0, -43%, 0) scale(.985);
+  /* No CSS blur — filter:blur is a major scroll/scrub FPS killer */
+  transform: translate3d(0, -46%, 0);
   transition:
-    opacity .6s cubic-bezier(.22, 1, .36, 1),
-    transform .78s cubic-bezier(.22, 1, .36, 1),
-    filter .58s ease,
-    visibility 0s linear .65s;
+    opacity .45s cubic-bezier(.22, 1, .36, 1),
+    transform .5s cubic-bezier(.22, 1, .36, 1),
+    visibility 0s linear .5s;
+  will-change: opacity, transform;
+  contain: layout style;
 }
 
 .rs-scroll-scene:nth-child(even) {
@@ -148,8 +149,7 @@
 .rs-scroll-scene:nth-child(even).rs-scene-active {
   opacity: 1;
   visibility: visible;
-  filter: blur(0);
-  transform: translate3d(0, -50%, 0) scale(1);
+  transform: translate3d(0, -50%, 0);
   transition-delay: 0s;
 }
 
@@ -369,12 +369,12 @@ html.rs-video-scrubbing {
     border-left: 2px solid rgba(223, 168, 79, .92);
     border-right: 0;
     text-align: left;
-    transform: translate3d(0, 18px, 0) scale(.985);
+    transform: translate3d(0, 18px, 0);
   }
 
   .rs-scroll-scene.rs-scene-active,
   .rs-scroll-scene:nth-child(even).rs-scene-active {
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: translate3d(0, 0, 0);
   }
 
   .rs-scroll-scene:nth-child(even) .rs-scene-kicker {
@@ -463,6 +463,5 @@ html.rs-video-scrubbing {
   .rs-scroll-scene,
   .rs-scroll-scene:nth-child(even) {
     transition: none !important;
-    filter: none !important;
   }
 }
