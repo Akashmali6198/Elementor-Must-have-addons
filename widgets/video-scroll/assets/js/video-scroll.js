@@ -1,6 +1,6 @@
 (function ($) {
     const initVideoScroll = function () {
-        elementorFrontend.hooks.addAction('frontend/element_ready/emha-video-scroll.default', function ($scope) {
+        const initWidgetInstance = function ($scope) {
             const scrollHero = $scope.find('.rs-scroll-hero')[0];
             if (!scrollHero) return;
 
@@ -96,9 +96,21 @@
                 }
             }
 
+            // Scroll-scrub only: video must never free-play.
+            function forcePause() {
+                if (!video.paused) {
+                    try {
+                        video.pause();
+                    } catch (error) { }
+                }
+            }
+
             function scrubVideo() {
                 framePending = false;
                 if (video.readyState < 1) return;
+
+                // Keep video frozen; only currentTime is driven by scroll.
+                forcePause();
 
                 const metrics = heroMetrics();
                 const progress = clamp(
@@ -297,7 +309,10 @@
                     )
                 );
 
-                video.pause();
+                // Never start normal playback — only scroll scrubbing.
+                video.autoplay = false;
+                video.removeAttribute('autoplay');
+                forcePause();
 
                 try {
                     video.currentTime = 0.01;
@@ -307,27 +322,50 @@
                 requestScrub();
             }
 
-            function primeVideo() {
-                const playback = video.play();
-
-                if (playback && playback.then) {
-                    playback
-                        .then(() => {
-                            video.pause();
-                            requestScrub();
-                        })
-                        .catch(() => { });
-                }
-            }
-
             video.muted = true;
             video.defaultMuted = true;
             video.playsInline = true;
             video.preload = 'auto';
+            video.autoplay = false;
+            video.loop = false;
+            video.controls = false;
+            video.removeAttribute('autoplay');
+            video.removeAttribute('loop');
+            video.removeAttribute('controls');
+
+            // Kill any accidental play (browser autoplay, theme scripts, etc.).
+            video.addEventListener(
+                'play',
+                () => {
+                    forcePause();
+                    requestScrub();
+                },
+                true
+            );
+
+            // iOS/Safari sometimes needs a user gesture before seeking is stable.
+            // Unlock the media element without leaving it playing.
+            function unlockSeeking() {
+                forcePause();
+                try {
+                    const t = video.currentTime;
+                    video.currentTime = Math.min(
+                        playbackEnd || duration,
+                        Math.max(0.01, t + 0.001)
+                    );
+                    video.currentTime = t;
+                } catch (error) { }
+                requestScrub();
+            }
 
             document.documentElement.addEventListener(
                 'touchstart',
-                primeVideo,
+                unlockSeeking,
+                { once: true, passive: true }
+            );
+            document.documentElement.addEventListener(
+                'wheel',
+                unlockSeeking,
                 { once: true, passive: true }
             );
 
@@ -340,6 +378,7 @@
             video.addEventListener(
                 'seeked',
                 () => {
+                    forcePause();
                     if (Math.abs(video.currentTime - desiredTime) > 0.025) {
                         requestScrub();
                     }
@@ -348,11 +387,22 @@
             );
 
             video.addEventListener(
+                'playing',
+                () => {
+                    forcePause();
+                    requestScrub();
+                },
+                true
+            );
+
+            video.addEventListener(
                 'error',
                 () => scrollStage.classList.add('rs-video-error'),
                 { once: true }
             );
 
+            // Load metadata/frames without starting playback.
+            forcePause();
             video.load();
 
             window.addEventListener('wheel', handleHeroWheel, { passive: false });
@@ -382,6 +432,14 @@
             setScene(0);
             updateNavigator(0);
             requestScrub();
+        };
+
+        elementorFrontend.hooks.addAction('frontend/element_ready/emha-video-scroll.default', function ($scope) {
+            initWidgetInstance($scope);
+        });
+
+        $('.elementor-widget-emha-video-scroll').each(function () {
+            initWidgetInstance($(this));
         });
     };
 
