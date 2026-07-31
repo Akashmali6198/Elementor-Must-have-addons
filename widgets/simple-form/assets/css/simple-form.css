@@ -1,0 +1,140 @@
+.emha-form-wrapper {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 30px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+    color: #ffffff;
+    font-family: 'Outfit', sans-serif;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.emha-form-group {
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.emha-form-label {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: #e3e3e3;
+    text-transform: uppercase;
+}
+
+.emha-required-asterisk {
+    color: #dfa84f;
+    margin-left: 3px;
+}
+
+.emha-form-control {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    padding: 12px 16px;
+    color: #ffffff;
+    font-size: 15px;
+    outline: none;
+    transition: all 0.3s ease;
+    font-family: inherit;
+}
+
+.emha-form-control::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.emha-form-control:focus {
+    border-color: #dfa84f;
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 10px rgba(223, 168, 79, 0.2);
+}
+
+textarea.emha-form-control {
+    min-height: 120px;
+    resize: vertical;
+}
+
+.emha-form-submit-container {
+    margin-top: 25px;
+}
+
+.emha-form-submit-btn {
+    width: 100%;
+    background-color: #c99642;
+    border: none;
+    border-radius: 6px;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+    overflow: hidden;
+}
+
+.emha-form-submit-btn:hover {
+    background-color: #dfa84f;
+    box-shadow: 0 4px 15px rgba(223, 168, 79, 0.4);
+    transform: translateY(-1px);
+}
+
+.emha-form-submit-btn:active {
+    transform: translateY(0);
+}
+
+.emha-submit-loader {
+    display: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: emha-spin 0.8s linear infinite;
+}
+
+@keyframes emha-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.emha-form-response-msg {
+    margin-top: 15px;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    display: none;
+    text-align: center;
+}
+
+.emha-form-response-msg.emha-success {
+    background: rgba(46, 160, 67, 0.15);
+    border: 1px solid rgba(46, 160, 67, 0.3);
+    color: #3fb950;
+    display: block;
+}
+
+.emha-form-response-msg.emha-error {
+    background: rgba(248, 81, 73, 0.15);
+    border: 1px solid rgba(248, 81, 73, 0.3);
+    color: #f85149;
+    display: block;
+}
+
+.emha-form-loading .emha-submit-loader {
+    display: inline-block;
+}
+
+.emha-form-loading .emha-form-submit-btn {
+    pointer-events: none;
+    opacity: 0.8;
+}
