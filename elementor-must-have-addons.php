@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Elementor Must-have Addons
  * Description: Custom premium widgets for Elementor, including 3D Video Scroll and Simple Submission Form.
- * Version:     1.0.0
+ * Version:     1.0.1
  * Author:      Akash Mali <maliakash6198@gmail.com>
  * Author URI:  https://github.com/Akashmali6198
  * Text Domain: elementor-must-have-addons
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class Elementor_Must_Have_Addons {
 
-	const VERSION = '1.0.0';
+	const VERSION = '1.0.1';
 	const MINIMUM_ELEMENTOR_VERSION = '3.0.0';
 	const MINIMUM_PHP_VERSION = '7.4';
 
@@ -60,7 +60,9 @@ final class Elementor_Must_Have_Addons {
 		}
 
 		// Load Include Files
-		require_once( __DIR__ . '/includes/admin-settings.php' );
+		require_once __DIR__ . '/includes/admin-settings.php';
+		// Always load form AJAX handler (must work even when widget class is not constructed).
+		require_once __DIR__ . '/includes/form-handler.php';
 
 		// Register Widget Categories
 		add_action( 'elementor/elements/categories_registered', [ $this, 'register_categories' ] );
@@ -68,9 +70,12 @@ final class Elementor_Must_Have_Addons {
 		// Register Widgets
 		add_action( 'elementor/widgets/register', [ $this, 'register_widgets' ] );
 
-		// Register Scripts
+		// Register Scripts / Styles
 		add_action( 'wp_enqueue_scripts', [ $this, 'register_frontend_scripts' ] );
 		add_action( 'wp_enqueue_scripts', [ $this, 'register_frontend_styles' ] );
+		// Also register in editor preview / Elementor canvas.
+		add_action( 'elementor/frontend/after_register_scripts', [ $this, 'register_frontend_scripts' ] );
+		add_action( 'elementor/frontend/after_register_styles', [ $this, 'register_frontend_styles' ] );
 	}
 
 	public function activate() {
@@ -152,46 +157,55 @@ final class Elementor_Must_Have_Addons {
 	}
 
 	public function register_frontend_scripts() {
-		wp_register_script(
-			'emha-video-scroll-script',
-			plugins_url( '/widgets/video-scroll/assets/js/video-scroll.js', __FILE__ ),
-			[ 'jquery' ],
-			self::VERSION,
-			true
-		);
-		wp_register_script(
-			'emha-simple-form-script',
-			plugins_url( '/widgets/simple-form/assets/js/simple-form.js', __FILE__ ),
-			[ 'jquery' ],
-			self::VERSION,
-			true
-		);
-		$ajax_url = admin_url( 'admin-ajax.php' );
-		if ( is_ssl() ) {
-			$ajax_url = str_replace( 'http://', 'https://', $ajax_url );
-		} else {
-			$ajax_url = str_replace( 'https://', 'http://', $ajax_url );
+		// Avoid double-registering when both wp_enqueue_scripts and Elementor hooks fire.
+		if ( ! wp_script_is( 'emha-video-scroll-script', 'registered' ) ) {
+			wp_register_script(
+				'emha-video-scroll-script',
+				plugins_url( '/widgets/video-scroll/assets/js/video-scroll.js', __FILE__ ),
+				[ 'jquery' ],
+				self::VERSION,
+				true
+			);
 		}
 
-		wp_localize_script( 'emha-simple-form-script', 'emha_ajax', [
-			'ajax_url' => $ajax_url,
-			'nonce'    => wp_create_nonce( 'emha_form_nonce' )
-		] );
+		if ( ! wp_script_is( 'emha-simple-form-script', 'registered' ) ) {
+			wp_register_script(
+				'emha-simple-form-script',
+				plugins_url( '/widgets/simple-form/assets/js/simple-form.js', __FILE__ ),
+				[ 'jquery' ],
+				self::VERSION,
+				true
+			);
+		}
+
+		// Always refresh localized data when this runs (nonce must stay valid).
+		wp_localize_script(
+			'emha-simple-form-script',
+			'emha_ajax',
+			[
+				'ajax_url' => admin_url( 'admin-ajax.php' ),
+				'nonce'    => wp_create_nonce( 'emha_form_nonce' ),
+			]
+		);
 	}
 
 	public function register_frontend_styles() {
-		wp_register_style(
-			'emha-video-scroll-style',
-			plugins_url( '/widgets/video-scroll/assets/css/video-scroll.css', __FILE__ ),
-			[],
-			self::VERSION
-		);
-		wp_register_style(
-			'emha-simple-form-style',
-			plugins_url( '/widgets/simple-form/assets/css/simple-form.css', __FILE__ ),
-			[],
-			self::VERSION
-		);
+		if ( ! wp_style_is( 'emha-video-scroll-style', 'registered' ) ) {
+			wp_register_style(
+				'emha-video-scroll-style',
+				plugins_url( '/widgets/video-scroll/assets/css/video-scroll.css', __FILE__ ),
+				[],
+				self::VERSION
+			);
+		}
+		if ( ! wp_style_is( 'emha-simple-form-style', 'registered' ) ) {
+			wp_register_style(
+				'emha-simple-form-style',
+				plugins_url( '/widgets/simple-form/assets/css/simple-form.css', __FILE__ ),
+				[],
+				self::VERSION
+			);
+		}
 	}
 }
 

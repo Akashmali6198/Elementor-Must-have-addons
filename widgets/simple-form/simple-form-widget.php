@@ -5,14 +5,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Elementor_Simple_Form_Widget extends \Elementor\Widget_Base {
 
-	public function __construct( $data = [], $args = null ) {
-		parent::__construct( $data, $args );
-		
-		// Register AJAX handler for submissions
-		add_action( 'wp_ajax_emha_submit_form', [ $this, 'handle_form_submission' ] );
-		add_action( 'wp_ajax_nopriv_emha_submit_form', [ $this, 'handle_form_submission' ] );
-	}
-
 	public function get_name() {
 		return 'emha-simple-form';
 	}
@@ -94,12 +86,12 @@ class Elementor_Simple_Form_Widget extends \Elementor\Widget_Base {
 		$repeater->add_control(
 			'field_required',
 			[
-				'label'     => esc_html__( 'Required', 'elementor-must-have-addons' ),
-				'type'      => \Elementor\Controls_Manager::SWITCHER,
-				'label_on'  => esc_html__( 'Yes', 'elementor-must-have-addons' ),
-				'label_off' => esc_html__( 'No', 'elementor-must-have-addons' ),
+				'label'        => esc_html__( 'Required', 'elementor-must-have-addons' ),
+				'type'         => \Elementor\Controls_Manager::SWITCHER,
+				'label_on'     => esc_html__( 'Yes', 'elementor-must-have-addons' ),
+				'label_off'    => esc_html__( 'No', 'elementor-must-have-addons' ),
 				'return_value' => 'yes',
-				'default'   => 'no',
+				'default'      => 'no',
 			]
 		);
 
@@ -111,22 +103,22 @@ class Elementor_Simple_Form_Widget extends \Elementor\Widget_Base {
 				'fields'      => $repeater->get_controls(),
 				'default'     => [
 					[
-						'field_type'  => 'text',
-						'field_label' => esc_html__( 'Full Name', 'elementor-must-have-addons' ),
+						'field_type'        => 'text',
+						'field_label'       => esc_html__( 'Full Name', 'elementor-must-have-addons' ),
 						'field_placeholder' => esc_html__( 'John Doe', 'elementor-must-have-addons' ),
-						'field_required' => 'yes',
+						'field_required'    => 'yes',
 					],
 					[
-						'field_type'  => 'email',
-						'field_label' => esc_html__( 'Email Address', 'elementor-must-have-addons' ),
+						'field_type'        => 'email',
+						'field_label'       => esc_html__( 'Email Address', 'elementor-must-have-addons' ),
 						'field_placeholder' => esc_html__( 'john@example.com', 'elementor-must-have-addons' ),
-						'field_required' => 'yes',
+						'field_required'    => 'yes',
 					],
 					[
-						'field_type'  => 'textarea',
-						'field_label' => esc_html__( 'Message', 'elementor-must-have-addons' ),
+						'field_type'        => 'textarea',
+						'field_label'       => esc_html__( 'Message', 'elementor-must-have-addons' ),
 						'field_placeholder' => esc_html__( 'How can we help you?', 'elementor-must-have-addons' ),
-						'field_required' => 'yes',
+						'field_required'    => 'yes',
 					],
 				],
 				'title_field' => '{{{ field_label }}}',
@@ -231,40 +223,59 @@ class Elementor_Simple_Form_Widget extends \Elementor\Widget_Base {
 	}
 
 	protected function render() {
+		// Ensure assets load even if Elementor dependency resolution is delayed.
+		wp_enqueue_script( 'emha-simple-form-script' );
+		wp_enqueue_style( 'emha-simple-form-style' );
+
 		$settings = $this->get_settings_for_display();
-		$fields   = $settings['form_fields'];
-		$form_id  = 'emha-form-' . $this->get_id();
+		$fields   = ! empty( $settings['form_fields'] ) ? $settings['form_fields'] : [];
+		$widget_id = $this->get_id();
+		$form_dom_id = 'emha-form-' . $widget_id;
+		$post_id = get_the_ID();
+
+		// Cache form config for reliable AJAX handling (email, subject, messages).
+		if ( class_exists( 'EMHA_Form_Handler' ) ) {
+			EMHA_Form_Handler::save_form_config( $widget_id, $settings );
+		}
 		?>
 		<div class="emha-form-wrapper">
-			<form id="<?php echo esc_attr( $form_id ); ?>" class="emha-ajax-form" method="post">
+			<form id="<?php echo esc_attr( $form_dom_id ); ?>"
+				class="emha-ajax-form"
+				method="post"
+				action=""
+				novalidate="novalidate">
 				<input type="hidden" name="action" value="emha_submit_form">
-				<input type="hidden" name="form_id" value="<?php echo esc_attr( $this->get_id() ); ?>">
+				<input type="hidden" name="form_id" value="<?php echo esc_attr( $widget_id ); ?>">
 				<input type="hidden" name="form_name" value="<?php echo esc_attr( $settings['form_name'] ); ?>">
+				<input type="hidden" name="post_id" value="<?php echo esc_attr( $post_id ? $post_id : 0 ); ?>">
+				<?php wp_nonce_field( 'emha_form_nonce', '_wpnonce', false ); ?>
 
 				<div class="emha-form-fields-container">
-					<?php foreach ( $fields as $index => $field ) : 
-						$field_id = 'field_' . $index;
-						$required = ( 'yes' === $field['field_required'] ) ? 'required' : '';
+					<?php foreach ( $fields as $index => $field ) :
+						$field_id   = 'field_' . $widget_id . '_' . $index;
+						$is_required = ( isset( $field['field_required'] ) && 'yes' === $field['field_required'] );
+						$field_key  = sanitize_title( ! empty( $field['field_label'] ) ? $field['field_label'] : 'field_' . $index );
+						$field_type = ! empty( $field['field_type'] ) ? $field['field_type'] : 'text';
 						?>
 						<div class="emha-form-group">
 							<label class="emha-form-label" for="<?php echo esc_attr( $field_id ); ?>">
 								<?php echo esc_html( $field['field_label'] ); ?>
-								<?php if ( $required ) : ?><span class="emha-required-asterisk">*</span><?php endif; ?>
+								<?php if ( $is_required ) : ?><span class="emha-required-asterisk">*</span><?php endif; ?>
 							</label>
 
-							<?php if ( 'textarea' === $field['field_type'] ) : ?>
-								<textarea class="emha-form-control" 
-									name="fields[<?php echo esc_attr( sanitize_title( $field['field_label'] ) ); ?>]"
+							<?php if ( 'textarea' === $field_type ) : ?>
+								<textarea class="emha-form-control"
+									name="fields[<?php echo esc_attr( $field_key ); ?>]"
 									id="<?php echo esc_attr( $field_id ); ?>"
 									placeholder="<?php echo esc_attr( $field['field_placeholder'] ); ?>"
-									<?php echo esc_attr( $required ); ?>></textarea>
+									<?php echo $is_required ? 'required' : ''; ?>></textarea>
 							<?php else : ?>
-								<input class="emha-form-control" 
-									type="<?php echo esc_attr( $field['field_type'] ); ?>"
-									name="fields[<?php echo esc_attr( sanitize_title( $field['field_label'] ) ); ?>]"
+								<input class="emha-form-control"
+									type="<?php echo esc_attr( $field_type ); ?>"
+									name="fields[<?php echo esc_attr( $field_key ); ?>]"
 									id="<?php echo esc_attr( $field_id ); ?>"
 									placeholder="<?php echo esc_attr( $field['field_placeholder'] ); ?>"
-									<?php echo esc_attr( $required ); ?>>
+									<?php echo $is_required ? 'required' : ''; ?>>
 							<?php endif; ?>
 						</div>
 					<?php endforeach; ?>
@@ -273,106 +284,13 @@ class Elementor_Simple_Form_Widget extends \Elementor\Widget_Base {
 				<div class="emha-form-submit-container">
 					<button type="submit" class="emha-form-submit-btn">
 						<span class="emha-submit-text"><?php echo esc_html( $settings['submit_btn_text'] ); ?></span>
-						<span class="emha-submit-loader"></span>
+						<span class="emha-submit-loader" aria-hidden="true"></span>
 					</button>
 				</div>
 
-				<div class="emha-form-response-msg"></div>
+				<div class="emha-form-response-msg" role="status" aria-live="polite"></div>
 			</form>
 		</div>
 		<?php
-	}
-
-	public function handle_form_submission() {
-		// Verify nonce
-		if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'emha_form_nonce' ) ) {
-			wp_send_json_error( [ 'message' => esc_html__( 'Security check failed.', 'elementor-must-have-addons' ) ] );
-		}
-
-		$form_id   = isset( $_POST['form_id'] ) ? sanitize_text_field( $_POST['form_id'] ) : '';
-		$form_name = isset( $_POST['form_name'] ) ? sanitize_text_field( $_POST['form_name'] ) : 'Simple Form';
-		$raw_fields = isset( $_POST['fields'] ) ? $_POST['fields'] : [];
-
-		if ( empty( $raw_fields ) ) {
-			wp_send_json_error( [ 'message' => esc_html__( 'Please fill out the form.', 'elementor-must-have-addons' ) ] );
-		}
-
-		$fields = [];
-		foreach ( $raw_fields as $key => $val ) {
-			$fields[ sanitize_text_field( $key ) ] = sanitize_textarea_field( $val );
-		}
-
-		// Retrieve widget settings to find recipient email & subject
-		$recipient = get_option( 'admin_email' );
-		$subject   = esc_html__( 'New Form Submission', 'elementor-must-have-addons' );
-		$success_msg = esc_html__( 'Your submission was sent successfully!', 'elementor-must-have-addons' );
-
-		// Query Elementor meta data for custom settings if available
-		if ( ! empty( $_POST['post_id'] ) ) {
-			$post_id = intval( $_POST['post_id'] );
-			$document = \Elementor\Plugin::$instance->documents->get( $post_id );
-			if ( $document ) {
-				$elements_data = $document->get_elements_data();
-				$widget_data = $this->find_widget_data( $elements_data, $form_id );
-				if ( $widget_data && isset( $widget_data['settings'] ) ) {
-					$settings = $widget_data['settings'];
-					if ( ! empty( $settings['admin_email'] ) ) {
-						$recipient = $settings['admin_email'];
-					}
-					if ( ! empty( $settings['email_subject'] ) ) {
-						$subject = $settings['email_subject'];
-					}
-					if ( ! empty( $settings['success_message'] ) ) {
-						$success_msg = $settings['success_message'];
-					}
-				}
-			}
-		}
-
-		// Log to Database
-		global $wpdb;
-		$table_name = $wpdb->prefix . 'emha_submissions';
-		$inserted = $wpdb->insert(
-			$table_name,
-			[
-				'form_id'   => $form_id,
-				'form_name' => $form_name,
-				'fields'    => json_encode( $fields ),
-				'user_ip'   => $_SERVER['REMOTE_ADDR'],
-			],
-			[ '%s', '%s', '%s', '%s' ]
-		);
-
-		// Send Email
-		$email_content = "New submission from: " . $form_name . "\n\n";
-		foreach ( $fields as $label => $value ) {
-			$email_content .= ucfirst( $label ) . ": " . $value . "\n";
-		}
-		$email_content .= "\nSubmitted on: " . current_time( 'mysql' ) . "\n";
-		$email_content .= "IP Address: " . $_SERVER['REMOTE_ADDR'] . "\n";
-
-		$headers = [ 'Content-Type: text/plain; charset=UTF-8' ];
-		$mail_sent = wp_mail( $recipient, $subject, $email_content, $headers );
-
-		if ( $inserted || $mail_sent ) {
-			wp_send_json_success( [ 'message' => $success_msg ] );
-		} else {
-			wp_send_json_error( [ 'message' => esc_html__( 'Failed to process submission. Please try again.', 'elementor-must-have-addons' ) ] );
-		}
-	}
-
-	private function find_widget_data( $elements, $form_id ) {
-		foreach ( $elements as $element ) {
-			if ( isset( $element['elType'] ) && 'widget' === $element['elType'] && isset( $element['id'] ) && $element['id'] === $form_id ) {
-				return $element;
-			}
-			if ( ! empty( $element['elements'] ) ) {
-				$found = $this->find_widget_data( $element['elements'], $form_id );
-				if ( $found ) {
-					return $found;
-				}
-			}
-		}
-		return null;
 	}
 }
