@@ -45,7 +45,7 @@ class Elementor_Video_Scroll_Widget extends \Elementor\Widget_Base {
 				'label'       => esc_html__( 'Video URL', 'elementor-must-have-addons' ),
 				'type'        => \Elementor\Controls_Manager::MEDIA,
 				'default'     => [
-					'url' => 'http://akashmali.info/wp-content/uploads/2026/07/new-realestate-scroll-30mb.mp4',
+					'url' => 'https://akashmali.info/wp-content/uploads/2026/07/new-realestate-scroll-30mb.mp4',
 				],
 				'media_types' => [ 'video' ],
 				'description' => esc_html__( 'Note: A 15FPS video is recommended for optimal smooth scrolling (maximum file size around 30MB).', 'elementor-must-have-addons' ),
@@ -251,6 +251,11 @@ class Elementor_Video_Scroll_Widget extends \Elementor\Widget_Base {
 
 		$video_url  = ! empty( $settings['video_url']['url'] ) ? esc_url( $settings['video_url']['url'] ) : '';
 		$poster_url = ! empty( $settings['poster_url']['url'] ) ? esc_url( $settings['poster_url']['url'] ) : '';
+
+		if ( is_ssl() ) {
+			$video_url  = str_replace( 'http://', 'https://', $video_url );
+			$poster_url = str_replace( 'http://', 'https://', $poster_url );
+		}
 		$seo_title  = ! empty( $settings['seo_title'] ) ? esc_html( $settings['seo_title'] ) : '';
 
 		$scenes = $settings['scenes_list'];

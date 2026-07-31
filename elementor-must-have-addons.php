@@ -167,7 +167,7 @@ final class Elementor_Must_Have_Addons {
 			true
 		);
 		wp_localize_script( 'emha-simple-form-script', 'emha_ajax', [
-			'ajax_url' => admin_url( 'admin-ajax.php' ),
+			'ajax_url' => admin_url( 'admin-ajax.php', 'relative' ),
 			'nonce'    => wp_create_nonce( 'emha_form_nonce' )
 		] );
 	}
