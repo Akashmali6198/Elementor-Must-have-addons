@@ -275,15 +275,17 @@ class Elementor_Video_Scroll_Widget extends \Elementor\Widget_Base {
 			<div class="rs-scroll-stage">
 				<?php if ( $video_url ) : ?>
 					<video class="rs-scroll-video"
-						src="<?php echo esc_url( $video_url ); ?>" 
-						preload="auto" 
+						src="<?php echo esc_url( $video_url ); ?>"
+						preload="auto"
 						muted
-						playsinline 
-						webkit-playsinline 
-						autoplay 
+						playsinline
+						webkit-playsinline
+						disablepictureinpicture
+						disableremoteplayback
 						type="video/mp4"
 						poster="<?php echo esc_url( $poster_url ); ?>"
-						aria-label="<?php echo esc_attr( $seo_title ); ?>">
+						aria-label="<?php echo esc_attr( $seo_title ); ?>"
+						data-emha-scroll-video="1">
 					</video>
 				<?php endif; ?>
 

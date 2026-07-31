@@ -210,7 +210,7 @@ class EMHA_Admin_Settings {
 
 		<div class="emha-admin-wrap">
 			<div class="emha-header">
-				<h1>Elementor Must-have Addons <span>v1.0.1</span></h1>
+				<h1>Elementor Must-have Addons <span>v1.0.2</span></h1>
 			</div>
 
 			<div class="emha-nav-tabs">
