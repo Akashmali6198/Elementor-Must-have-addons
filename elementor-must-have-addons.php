@@ -69,8 +69,8 @@ final class Elementor_Must_Have_Addons {
 		add_action( 'elementor/widgets/register', [ $this, 'register_widgets' ] );
 
 		// Register Scripts
-		add_action( 'elementor/frontend/after_register_scripts', [ $this, 'register_frontend_scripts' ] );
-		add_action( 'elementor/frontend/after_register_styles', [ $this, 'register_frontend_styles' ] );
+		add_action( 'wp_enqueue_scripts', [ $this, 'register_frontend_scripts' ] );
+		add_action( 'wp_enqueue_scripts', [ $this, 'register_frontend_styles' ] );
 	}
 
 	public function activate() {
