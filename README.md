@@ -14,6 +14,7 @@ An interactive, scroll-controlled cinematic video section featuring fluid scene 
 * **Dynamic Timed Scenes**: Add multiple overlays, change kicker, title, and trigger times inside the Elementor sidebar.
 * **Vertical Navigator**: Displays frame progress and allows manual dragging or slider navigation.
 * **Aesthetics Customization**: Adjust background color and gold accents.
+* **Important Note**: A **15FPS** encoded video is recommended for optimal scroll synchronization and buttery-smooth frames (maximum recommended file size is **30MB** to ensure fast loading times).
 
 ### 2. Simple Submission Form Widget
 A sleek, glassmorphic contact and submission form that captures user details without needing heavy contact form plugins.

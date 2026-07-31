@@ -48,6 +48,7 @@ class Elementor_Video_Scroll_Widget extends \Elementor\Widget_Base {
 					'url' => 'http://akashmali.info/wp-content/uploads/2026/07/new-realestate-scroll-30mb.mp4',
 				],
 				'media_types' => [ 'video' ],
+				'description' => esc_html__( 'Note: A 15FPS video is recommended for optimal smooth scrolling (maximum file size around 30MB).', 'elementor-must-have-addons' ),
 			]
 		);
 
