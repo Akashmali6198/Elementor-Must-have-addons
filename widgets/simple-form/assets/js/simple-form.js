@@ -130,10 +130,63 @@
         return false;
     }
 
+    /**
+     * Multisite signup: show/hide site fields when visitor chooses
+     * "Gimme a site!" vs "Just a username".
+     */
+    function toggleBlogFields($form) {
+        var $blogFields = $form.find('[data-emha-blog-fields="1"]');
+        if (!$blogFields.length) {
+            return;
+        }
+
+        var $radios = $form.find('.emha-signup-for-radio');
+        if (!$radios.length) {
+            // Forced blog or user mode — keep fields as rendered.
+            $blogFields.find('input').prop('required', true);
+            return;
+        }
+
+        var signupFor = $form.find('.emha-signup-for-radio:checked').val() || 'user';
+        if (signupFor === 'blog') {
+            $blogFields.show();
+            $blogFields.find('input').prop('required', true);
+        } else {
+            $blogFields.hide();
+            $blogFields.find('input').prop('required', false).val('');
+        }
+    }
+
     // Bind once (covers all current + future form instances)
     $(document)
         .off('submit.emhaForm', '.emha-ajax-form')
         .on('submit.emhaForm', '.emha-ajax-form', handleFormSubmit);
+
+    $(document)
+        .off('change.emhaFormSignup', '.emha-signup-for-radio')
+        .on('change.emhaFormSignup', '.emha-signup-for-radio', function () {
+            toggleBlogFields($(this).closest('form'));
+        });
+
+    // Init blog field visibility for forms already on the page
+    function initRegistrationForms() {
+        $('.emha-ajax-form[data-form-mode="register"]').each(function () {
+            toggleBlogFields($(this));
+        });
+    }
+
+    $(initRegistrationForms);
+    // Elementor frontend re-renders widgets without full page reload
+    $(window).on('elementor/frontend/init', function () {
+        if (typeof elementorFrontend !== 'undefined' && elementorFrontend.hooks) {
+            elementorFrontend.hooks.addAction('frontend/element_ready/emha-simple-form.default', function ($scope) {
+                var $form = $scope.find('.emha-ajax-form');
+                if ($form.length) {
+                    toggleBlogFields($form);
+                }
+            });
+        }
+    });
 
     // Also stop button click from bubbling oddly in some themes
     $(document)

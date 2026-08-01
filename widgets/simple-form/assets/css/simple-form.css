@@ -1,78 +1,117 @@
+/* Visible light defaults — readable on typical WordPress pages */
 .emha-form-wrapper {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
-    padding: 30px;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
-    color: #ffffff;
-    font-family: 'Outfit', sans-serif;
+    background: #ffffff;
+    border: 1px solid #dcdcde;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    color: #1d2327;
+    font-family: inherit;
     max-width: 600px;
     margin: 0 auto;
+    box-sizing: border-box;
+}
+
+.emha-form-wrapper *,
+.emha-form-wrapper *::before,
+.emha-form-wrapper *::after {
+    box-sizing: border-box;
+}
+
+.emha-form-fields-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
 }
 
 .emha-form-group {
-    margin-bottom: 20px;
+    margin-bottom: 12px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 4px;
+}
+
+.emha-form-group:last-child {
+    margin-bottom: 0;
 }
 
 .emha-form-label {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
-    letter-spacing: 0.5px;
-    color: #e3e3e3;
-    text-transform: uppercase;
+    letter-spacing: 0;
+    color: #1d2327;
+    text-transform: none;
+    line-height: 1.3;
+    margin: 0;
 }
 
 .emha-required-asterisk {
-    color: #dfa84f;
-    margin-left: 3px;
+    color: #d63638;
+    margin-left: 2px;
 }
 
 .emha-form-control {
     width: 100%;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 6px;
-    padding: 12px 16px;
-    color: #ffffff;
-    font-size: 15px;
+    max-width: 100%;
+    background: #ffffff;
+    border: 1px solid #8c8f94;
+    border-radius: 4px;
+    padding: 8px 12px;
+    color: #1d2327;
+    font-size: 14px;
+    line-height: 1.4;
     outline: none;
-    transition: all 0.3s ease;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
     font-family: inherit;
+    min-height: 38px;
 }
 
 .emha-form-control::placeholder {
-    color: rgba(255, 255, 255, 0.4);
+    color: #757575;
+    opacity: 1;
 }
 
 .emha-form-control:focus {
-    border-color: #dfa84f;
-    background: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 0 10px rgba(223, 168, 79, 0.2);
+    border-color: #2271b1;
+    background: #ffffff;
+    box-shadow: 0 0 0 1px #2271b1;
+    color: #1d2327;
+}
+
+/* Avoid theme white-on-white overrides */
+.emha-form-wrapper input.emha-form-control,
+.emha-form-wrapper textarea.emha-form-control {
+    color: #1d2327;
+    background-color: #ffffff;
+    -webkit-text-fill-color: #1d2327;
+}
+
+.emha-form-wrapper input.emha-form-control:focus,
+.emha-form-wrapper textarea.emha-form-control:focus {
+    color: #1d2327;
+    -webkit-text-fill-color: #1d2327;
 }
 
 textarea.emha-form-control {
-    min-height: 120px;
+    min-height: 100px;
     resize: vertical;
 }
 
 .emha-form-submit-container {
-    margin-top: 25px;
+    margin-top: 14px;
 }
 
 .emha-form-submit-btn {
     width: 100%;
     background-color: #c99642;
     border: none;
-    border-radius: 6px;
-    padding: 14px;
-    font-size: 16px;
+    border-radius: 4px;
+    padding: 11px 14px;
+    font-size: 15px;
     font-weight: 700;
+    color: #ffffff;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
     display: inline-flex;
     justify-content: center;
     align-items: center;
@@ -83,8 +122,9 @@ textarea.emha-form-control {
 
 .emha-form-submit-btn:hover {
     background-color: #dfa84f;
-    box-shadow: 0 4px 15px rgba(223, 168, 79, 0.4);
+    box-shadow: 0 2px 8px rgba(201, 150, 66, 0.35);
     transform: translateY(-1px);
+    color: #ffffff;
 }
 
 .emha-form-submit-btn:active {
@@ -93,9 +133,9 @@ textarea.emha-form-control {
 
 .emha-submit-loader {
     display: none;
-    width: 18px;
-    height: 18px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
     border-top-color: #ffffff;
     border-radius: 50%;
     animation: emha-spin 0.8s linear infinite;
@@ -108,25 +148,27 @@ textarea.emha-form-control {
 }
 
 .emha-form-response-msg {
-    margin-top: 15px;
-    padding: 12px;
-    border-radius: 6px;
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 4px;
     font-size: 14px;
     display: none;
     text-align: center;
+    line-height: 1.45;
 }
 
 .emha-form-response-msg.emha-success {
-    background: rgba(46, 160, 67, 0.15);
-    border: 1px solid rgba(46, 160, 67, 0.3);
-    color: #3fb950;
+    background: #edfaef;
+    border: 1px solid #68de7c;
+    color: #1e4620;
     display: block;
+    white-space: pre-line;
 }
 
 .emha-form-response-msg.emha-error {
-    background: rgba(248, 81, 73, 0.15);
-    border: 1px solid rgba(248, 81, 73, 0.3);
-    color: #f85149;
+    background: #fcf0f1;
+    border: 1px solid #f0a8a8;
+    color: #8a2424;
     display: block;
 }
 
@@ -136,5 +178,84 @@ textarea.emha-form-control {
 
 .emha-form-loading .emha-form-submit-btn {
     pointer-events: none;
-    opacity: 0.8;
+    opacity: 0.85;
+}
+
+/* Registration / Multisite signup — tighter layout */
+.emha-form-mode-register {
+    padding: 16px;
+}
+
+.emha-form-mode-register .emha-form-group {
+    margin-bottom: 10px;
+    gap: 3px;
+}
+
+.emha-form-mode-register .emha-form-control {
+    padding: 8px 10px;
+    min-height: 36px;
+}
+
+.emha-form-mode-register .emha-form-submit-container {
+    margin-top: 12px;
+}
+
+.emha-field-description {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.35;
+    color: #646970;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.emha-signup-for-group {
+    gap: 6px;
+}
+
+.emha-signup-for-group .emha-form-label {
+    margin-bottom: 2px;
+}
+
+.emha-signup-for-group .emha-radio-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    color: #1d2327;
+    cursor: pointer;
+    margin-top: 2px;
+    line-height: 1.3;
+}
+
+.emha-signup-for-group .emha-radio-label input {
+    width: auto;
+    min-width: 16px;
+    min-height: 16px;
+    margin: 0;
+    accent-color: #2271b1;
+    flex-shrink: 0;
+}
+
+.emha-site-address-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.emha-site-address-wrap .emha-form-control {
+    flex: 1 1 140px;
+    min-width: 120px;
+}
+
+.emha-site-address-prefix,
+.emha-site-address-suffix {
+    font-size: 13px;
+    color: #646970;
+    white-space: nowrap;
 }

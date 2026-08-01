@@ -30,15 +30,23 @@ class EMHA_Form_Handler {
 			$configs = [];
 		}
 
+		$form_mode = isset( $settings['form_mode'] ) ? sanitize_text_field( $settings['form_mode'] ) : 'contact';
+
+		// Registration mode uses a fixed success message (email activation flow).
+		$success_message = isset( $settings['success_message'] ) ? sanitize_text_field( $settings['success_message'] ) : 'Your submission was sent successfully!';
+		if ( 'register' === $form_mode ) {
+			$success_message = ! empty( $settings['register_success_message'] )
+				? sanitize_textarea_field( $settings['register_success_message'] )
+				: __( 'Signup successful! Please check your email for a link to set your password and log in.', 'elementor-must-have-addons' );
+		}
+
 		$configs[ $form_id ] = [
 			'form_name'             => isset( $settings['form_name'] ) ? sanitize_text_field( $settings['form_name'] ) : 'Contact Form',
 			'admin_email'           => isset( $settings['admin_email'] ) ? sanitize_email( $settings['admin_email'] ) : get_option( 'admin_email' ),
 			'email_subject'         => isset( $settings['email_subject'] ) ? sanitize_text_field( $settings['email_subject'] ) : 'New Form Submission',
-			'success_message'       => isset( $settings['success_message'] ) ? sanitize_text_field( $settings['success_message'] ) : 'Your submission was sent successfully!',
-			'form_mode'             => isset( $settings['form_mode'] ) ? sanitize_text_field( $settings['form_mode'] ) : 'contact',
-			'user_role'             => isset( $settings['user_role'] ) ? sanitize_text_field( $settings['user_role'] ) : 'subscriber',
-			'auto_login'            => isset( $settings['auto_login'] ) ? sanitize_text_field( $settings['auto_login'] ) : 'yes',
-			'multisite_create_site' => isset( $settings['multisite_create_site'] ) ? sanitize_text_field( $settings['multisite_create_site'] ) : 'no',
+			'success_message'       => $success_message,
+			'form_mode'             => $form_mode,
+			'multisite_signup_type' => isset( $settings['multisite_signup_type'] ) ? sanitize_text_field( $settings['multisite_signup_type'] ) : 'user',
 			'form_fields'           => isset( $settings['form_fields'] ) ? $settings['form_fields'] : [],
 			'updated_at'            => current_time( 'mysql' ),
 		];
@@ -112,15 +120,20 @@ class EMHA_Form_Handler {
 				$widget_data = self::find_widget_data( $document->get_elements_data(), $form_id );
 				if ( $widget_data && ! empty( $widget_data['settings'] ) ) {
 					$settings = $widget_data['settings'];
+					$form_mode_fb = isset( $settings['form_mode'] ) ? sanitize_text_field( $settings['form_mode'] ) : 'contact';
+					$success_fb   = isset( $settings['success_message'] ) ? sanitize_text_field( $settings['success_message'] ) : 'Your submission was sent successfully!';
+					if ( 'register' === $form_mode_fb ) {
+						$success_fb = ! empty( $settings['register_success_message'] )
+							? sanitize_textarea_field( $settings['register_success_message'] )
+							: __( 'Signup successful! Please check your email for a link to set your password and log in.', 'elementor-must-have-addons' );
+					}
 					$config = [
 						'form_name'             => isset( $settings['form_name'] ) ? sanitize_text_field( $settings['form_name'] ) : 'Contact Form',
 						'admin_email'           => isset( $settings['admin_email'] ) ? sanitize_email( $settings['admin_email'] ) : get_option( 'admin_email' ),
 						'email_subject'         => isset( $settings['email_subject'] ) ? sanitize_text_field( $settings['email_subject'] ) : 'New Form Submission',
-						'success_message'       => isset( $settings['success_message'] ) ? sanitize_text_field( $settings['success_message'] ) : 'Your submission was sent successfully!',
-						'form_mode'             => isset( $settings['form_mode'] ) ? sanitize_text_field( $settings['form_mode'] ) : 'contact',
-						'user_role'             => isset( $settings['user_role'] ) ? sanitize_text_field( $settings['user_role'] ) : 'subscriber',
-						'auto_login'            => isset( $settings['auto_login'] ) ? sanitize_text_field( $settings['auto_login'] ) : 'yes',
-						'multisite_create_site' => isset( $settings['multisite_create_site'] ) ? sanitize_text_field( $settings['multisite_create_site'] ) : 'no',
+						'success_message'       => $success_fb,
+						'form_mode'             => $form_mode_fb,
+						'multisite_signup_type' => isset( $settings['multisite_signup_type'] ) ? sanitize_text_field( $settings['multisite_signup_type'] ) : 'user',
 						'form_fields'           => isset( $settings['form_fields'] ) ? $settings['form_fields'] : [],
 					];
 				}
@@ -128,10 +141,7 @@ class EMHA_Form_Handler {
 		}
 
 		$form_mode             = isset( $config['form_mode'] ) ? $config['form_mode'] : 'contact';
-		$user_role             = isset( $config['user_role'] ) ? $config['user_role'] : 'subscriber';
-		$auto_login            = isset( $config['auto_login'] ) ? $config['auto_login'] : 'yes';
-		$multisite_create_site = isset( $config['multisite_create_site'] ) ? $config['multisite_create_site'] : 'no';
-		$form_fields           = isset( $config['form_fields'] ) ? $config['form_fields'] : [];
+		$multisite_signup_type = isset( $config['multisite_signup_type'] ) ? $config['multisite_signup_type'] : 'user';
 
 		if ( ! empty( $config['admin_email'] ) && is_email( $config['admin_email'] ) ) {
 			$recipient = $config['admin_email'];
@@ -146,284 +156,9 @@ class EMHA_Form_Handler {
 			$form_name = $config['form_name'];
 		}
 
-		$fields_map = [];
-		if ( ! empty( $form_fields ) && is_array( $form_fields ) ) {
-			foreach ( $form_fields as $index => $field ) {
-				$field_key = sanitize_title( ! empty( $field['field_label'] ) ? $field['field_label'] : 'field_' . $index );
-				$map_to    = ! empty( $field['map_to'] ) ? $field['map_to'] : 'none';
-				if ( $map_to !== 'none' ) {
-					$fields_map[ $map_to ] = $field_key;
-				}
-			}
-		}
-
-		// User Registration Mode
+		// User Registration Mode — WordPress default fields only (no custom extras).
 		if ( 'register' === $form_mode ) {
-			$user_login = '';
-			$user_email = '';
-			$user_pass  = '';
-			$first_name = '';
-			$last_name  = '';
-			$site_path  = '';
-			$site_title = '';
-
-			if ( isset( $fields_map['user_login'] ) && isset( $fields[ $fields_map['user_login'] ] ) ) {
-				$user_login = sanitize_user( $fields[ $fields_map['user_login'] ] );
-			}
-			if ( isset( $fields_map['user_email'] ) && isset( $fields[ $fields_map['user_email'] ] ) ) {
-				$user_email = sanitize_email( $fields[ $fields_map['user_email'] ] );
-			}
-			if ( isset( $fields_map['user_pass'] ) && isset( $fields[ $fields_map['user_pass'] ] ) ) {
-				$user_pass = $fields[ $fields_map['user_pass'] ];
-			}
-			if ( isset( $fields_map['first_name'] ) && isset( $fields[ $fields_map['first_name'] ] ) ) {
-				$first_name = sanitize_text_field( $fields[ $fields_map['first_name'] ] );
-			}
-			if ( isset( $fields_map['last_name'] ) && isset( $fields[ $fields_map['last_name'] ] ) ) {
-				$last_name = sanitize_text_field( $fields[ $fields_map['last_name'] ] );
-			}
-			if ( isset( $fields_map['site_path'] ) && isset( $fields[ $fields_map['site_path'] ] ) ) {
-				$site_path = sanitize_title( $fields[ $fields_map['site_path'] ] );
-			}
-			if ( isset( $fields_map['site_title'] ) && isset( $fields[ $fields_map['site_title'] ] ) ) {
-				$site_title = sanitize_text_field( $fields[ $fields_map['site_title'] ] );
-			}
-
-			// Smart Fallbacks
-			if ( empty( $user_email ) ) {
-				if ( ! empty( $form_fields ) && is_array( $form_fields ) ) {
-					foreach ( $form_fields as $index => $field ) {
-						$field_key = sanitize_title( ! empty( $field['field_label'] ) ? $field['field_label'] : 'field_' . $index );
-						$field_type = ! empty( $field['field_type'] ) ? $field['field_type'] : 'text';
-						if ( 'email' === $field_type && ! empty( $fields[ $field_key ] ) ) {
-							$user_email = sanitize_email( $fields[ $field_key ] );
-							break;
-						}
-					}
-				}
-			}
-
-			if ( empty( $user_login ) && ! empty( $user_email ) ) {
-				if ( ! empty( $form_fields ) && is_array( $form_fields ) ) {
-					foreach ( $form_fields as $index => $field ) {
-						$field_key = sanitize_title( ! empty( $field['field_label'] ) ? $field['field_label'] : 'field_' . $index );
-						$label_lower = strtolower( ! empty( $field['field_label'] ) ? $field['field_label'] : '' );
-						if ( ( strpos( $label_lower, 'username' ) !== false || strpos( $label_lower, 'user name' ) !== false ) && ! empty( $fields[ $field_key ] ) ) {
-							$user_login = sanitize_user( $fields[ $field_key ] );
-							break;
-						}
-					}
-				}
-				if ( empty( $user_login ) ) {
-					$parts = explode( '@', $user_email );
-					$user_login = sanitize_user( $parts[0] );
-				}
-			}
-
-			if ( empty( $user_pass ) ) {
-				if ( ! empty( $form_fields ) && is_array( $form_fields ) ) {
-					foreach ( $form_fields as $index => $field ) {
-						$field_key = sanitize_title( ! empty( $field['field_label'] ) ? $field['field_label'] : 'field_' . $index );
-						$field_type = ! empty( $field['field_type'] ) ? $field['field_type'] : 'text';
-						$label_lower = strtolower( ! empty( $field['field_label'] ) ? $field['field_label'] : '' );
-						if ( ( 'password' === $field_type || strpos( $label_lower, 'password' ) !== false ) && ! empty( $fields[ $field_key ] ) ) {
-							$user_pass = $fields[ $field_key ];
-							break;
-						}
-					}
-				}
-				if ( empty( $user_pass ) ) {
-					$user_pass = wp_generate_password( 12, false );
-				}
-			}
-
-			if ( empty( $site_path ) && is_multisite() && 'yes' === $multisite_create_site ) {
-				if ( ! empty( $form_fields ) && is_array( $form_fields ) ) {
-					foreach ( $form_fields as $index => $field ) {
-						$field_key = sanitize_title( ! empty( $field['field_label'] ) ? $field['field_label'] : 'field_' . $index );
-						$label_lower = strtolower( ! empty( $field['field_label'] ) ? $field['field_label'] : '' );
-						if ( ( strpos( $label_lower, 'site path' ) !== false || strpos( $label_lower, 'domain' ) !== false || strpos( $label_lower, 'subdomain' ) !== false ) && ! empty( $fields[ $field_key ] ) ) {
-							$site_path = sanitize_title( $fields[ $field_key ] );
-							break;
-						}
-					}
-				}
-				if ( empty( $site_path ) ) {
-					$site_path = $user_login;
-				}
-			}
-
-			if ( empty( $site_title ) && is_multisite() && 'yes' === $multisite_create_site ) {
-				if ( ! empty( $form_fields ) && is_array( $form_fields ) ) {
-					foreach ( $form_fields as $index => $field ) {
-						$field_key = sanitize_title( ! empty( $field['field_label'] ) ? $field['field_label'] : 'field_' . $index );
-						$label_lower = strtolower( ! empty( $field['field_label'] ) ? $field['field_label'] : '' );
-						if ( ( strpos( $label_lower, 'site title' ) !== false || strpos( $label_lower, 'website title' ) !== false ) && ! empty( $fields[ $field_key ] ) ) {
-							$site_title = sanitize_text_field( $fields[ $field_key ] );
-							break;
-						}
-					}
-				}
-				if ( empty( $site_title ) ) {
-					$site_title = ucfirst( $user_login ) . "'s Site";
-				}
-			}
-
-			// Validate inputs
-			if ( empty( $user_email ) || ! is_email( $user_email ) ) {
-				wp_send_json_error( [ 'message' => esc_html__( 'Please enter a valid email address.', 'elementor-must-have-addons' ) ] );
-			}
-			if ( email_exists( $user_email ) ) {
-				wp_send_json_error( [ 'message' => esc_html__( 'This email address is already registered.', 'elementor-must-have-addons' ) ] );
-			}
-
-			if ( empty( $user_login ) ) {
-				wp_send_json_error( [ 'message' => esc_html__( 'Username is required.', 'elementor-must-have-addons' ) ] );
-			}
-			if ( ! validate_username( $user_login ) ) {
-				wp_send_json_error( [ 'message' => esc_html__( 'Please enter a valid username.', 'elementor-must-have-addons' ) ] );
-			}
-			if ( username_exists( $user_login ) ) {
-				wp_send_json_error( [ 'message' => esc_html__( 'This username is already taken.', 'elementor-must-have-addons' ) ] );
-			}
-
-			if ( strlen( $user_pass ) < 6 ) {
-				wp_send_json_error( [ 'message' => esc_html__( 'Password must be at least 6 characters.', 'elementor-must-have-addons' ) ] );
-			}
-
-			// Multisite validation
-			$new_domain = '';
-			$new_path   = '';
-			if ( is_multisite() && 'yes' === $multisite_create_site ) {
-				if ( empty( $site_path ) ) {
-					wp_send_json_error( [ 'message' => esc_html__( 'Site path is required for site creation.', 'elementor-must-have-addons' ) ] );
-				}
-
-				$site_path = preg_replace( '/[^a-z0-9\-]/', '', strtolower( $site_path ) );
-				if ( strlen( $site_path ) < 4 ) {
-					wp_send_json_error( [ 'message' => esc_html__( 'Site path must be at least 4 characters long and contain only alphanumeric characters or hyphens.', 'elementor-must-have-addons' ) ] );
-				}
-
-				$reserved_paths = [ 'main', 'wp-admin', 'wp-content', 'wp-includes', 'files' ];
-				if ( in_array( $site_path, $reserved_paths, true ) ) {
-					wp_send_json_error( [ 'message' => esc_html__( 'The site path is reserved.', 'elementor-must-have-addons' ) ] );
-				}
-
-				if ( ! function_exists( 'is_subdomain_install' ) ) {
-					require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-				}
-
-				$current_network = get_network();
-				$domain          = $current_network->domain;
-				$path            = $current_network->path;
-
-				if ( is_subdomain_install() ) {
-					$new_domain = $site_path . '.' . $domain;
-					$new_path   = '/';
-				} else {
-					$new_domain = $domain;
-					$new_path   = $path . $site_path . '/';
-				}
-
-				if ( domain_exists( $new_domain, $new_path ) ) {
-					wp_send_json_error( [ 'message' => esc_html__( 'The site path or domain already exists.', 'elementor-must-have-addons' ) ] );
-				}
-			}
-
-			// Create User
-			$user_data = [
-				'user_login' => $user_login,
-				'user_email' => $user_email,
-				'user_pass'  => $user_pass,
-				'first_name' => $first_name,
-				'last_name'  => $last_name,
-				'role'       => $user_role,
-			];
-
-			$user_id = wp_insert_user( $user_data );
-
-			if ( is_wp_error( $user_id ) ) {
-				wp_send_json_error( [ 'message' => $user_id->get_error_message() ] );
-			}
-
-			// Save custom meta fields
-			foreach ( $fields as $key => $val ) {
-				if ( isset( $fields_map['user_login'] ) && $key === $fields_map['user_login'] ) {
-					continue;
-				}
-				if ( isset( $fields_map['user_email'] ) && $key === $fields_map['user_email'] ) {
-					continue;
-				}
-				if ( isset( $fields_map['user_pass'] ) && $key === $fields_map['user_pass'] ) {
-					continue;
-				}
-				if ( isset( $fields_map['first_name'] ) && $key === $fields_map['first_name'] ) {
-					continue;
-				}
-				if ( isset( $fields_map['last_name'] ) && $key === $fields_map['last_name'] ) {
-					continue;
-				}
-				if ( isset( $fields_map['site_path'] ) && $key === $fields_map['site_path'] ) {
-					continue;
-				}
-				if ( isset( $fields_map['site_title'] ) && $key === $fields_map['site_title'] ) {
-					continue;
-				}
-
-				update_user_meta( $user_id, 'emha_field_' . $key, $val );
-			}
-
-			// Create Site if enabled
-			$site_created_message = '';
-			if ( is_multisite() && 'yes' === $multisite_create_site ) {
-				if ( ! function_exists( 'wpmu_create_blog' ) ) {
-					require_once ABSPATH . 'wp-includes/ms-functions.php';
-				}
-
-				$blog_id = wpmu_create_blog( $new_domain, $new_path, $site_title, $user_id, [ 'public' => 1 ] );
-
-				if ( is_wp_error( $blog_id ) ) {
-					wp_delete_user( $user_id );
-					wp_send_json_error( [ 'message' => sprintf( __( 'User created but site creation failed: %s', 'elementor-must-have-addons' ), $blog_id->get_error_message() ) ] );
-				} else {
-					$site_created_message = sprintf( __( ' and site created at %s', 'elementor-must-have-addons' ), esc_url( get_home_url( $blog_id ) ) );
-				}
-			}
-
-			// Auto login
-			if ( 'yes' === $auto_login ) {
-				wp_set_current_user( $user_id );
-				wp_set_auth_cookie( $user_id, true );
-				$user_obj = get_user_by( 'id', $user_id );
-				if ( $user_obj ) {
-					do_action( 'wp_login', $user_obj->user_login, $user_obj );
-				}
-			}
-
-			// Mask password for logged fields
-			$logged_fields = $fields;
-			if ( isset( $fields_map['user_pass'] ) && isset( $logged_fields[ $fields_map['user_pass'] ] ) ) {
-				$logged_fields[ $fields_map['user_pass'] ] = '********';
-			}
-
-			// Log registration submission
-			self::maybe_create_table();
-			global $wpdb;
-			$table_name = $wpdb->prefix . 'emha_submissions';
-			$user_ip    = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
-
-			$wpdb->insert(
-				$table_name,
-				[
-					'form_id'   => $form_id,
-					'form_name' => $form_name,
-					'fields'    => wp_json_encode( $logged_fields ),
-					'user_ip'   => $user_ip,
-				],
-				[ '%s', '%s', '%s', '%s' ]
-			);
-
-			wp_send_json_success( [ 'message' => $success_msg . $site_created_message ] );
+			self::handle_registration_submission( $fields, $form_id, $form_name, $success_msg, $multisite_signup_type );
 		}
 
 		// Contact Form Mode (Original Code)
@@ -468,6 +203,241 @@ class EMHA_Form_Handler {
 				'message' => esc_html__( 'Failed to process submission. Please try again.', 'elementor-must-have-addons' ),
 				'debug'   => defined( 'WP_DEBUG' ) && WP_DEBUG ? $db_error : '',
 			]
+		);
+	}
+
+	/**
+	 * Handle User Registration using WordPress default fields only.
+	 *
+	 * Multisite uses the same flow as Network Admin → Add User:
+	 * create account immediately, then email a "set your password" link
+	 * (wp-login.php?action=rp). This avoids the public signup activation page
+	 * (wp-activate.php) which shows username/password and often has broken layout.
+	 *
+	 * @param array  $fields                Submitted fields.
+	 * @param string $form_id               Widget form ID.
+	 * @param string $form_name             Form name for logging.
+	 * @param string $success_msg           Success message.
+	 * @param string $multisite_signup_type user|blog|both.
+	 */
+	private static function handle_registration_submission( $fields, $form_id, $form_name, $success_msg, $multisite_signup_type = 'user' ) {
+		// Fixed WordPress signup keys only — ignore any extra posted keys.
+		$user_login = isset( $fields['user_login'] ) ? sanitize_user( $fields['user_login'], true ) : '';
+		$user_email = isset( $fields['user_email'] ) ? sanitize_email( $fields['user_email'] ) : '';
+		$signup_for = isset( $fields['signup_for'] ) ? sanitize_text_field( $fields['signup_for'] ) : 'user';
+		$blogname   = isset( $fields['blogname'] ) ? sanitize_text_field( $fields['blogname'] ) : '';
+		$blog_title = isset( $fields['blog_title'] ) ? sanitize_text_field( $fields['blog_title'] ) : '';
+
+		$user_login = strtolower( $user_login );
+		$blogname   = strtolower( preg_replace( '/[^a-z0-9\-]/', '', strtolower( $blogname ) ) );
+
+		if ( empty( $user_login ) ) {
+			wp_send_json_error( [ 'message' => esc_html__( 'Username is required.', 'elementor-must-have-addons' ) ] );
+		}
+		if ( empty( $user_email ) || ! is_email( $user_email ) ) {
+			wp_send_json_error( [ 'message' => esc_html__( 'Please enter a valid email address.', 'elementor-must-have-addons' ) ] );
+		}
+
+		$default_success = __( 'Signup successful! Please check your email for a link to set your password and log in.', 'elementor-must-have-addons' );
+		if ( empty( $success_msg ) || 'Your submission was sent successfully!' === $success_msg ) {
+			$success_msg = $default_success;
+		}
+
+		// ——— Multisite: create user (and optional site) like Network Admin → Add User ———
+		if ( is_multisite() ) {
+			if ( ! function_exists( 'wpmu_validate_user_signup' ) || ! function_exists( 'wpmu_create_user' ) ) {
+				require_once ABSPATH . WPINC . '/ms-functions.php';
+			}
+
+			$active_signup = get_site_option( 'registration', 'none' );
+			if ( 'none' === $active_signup ) {
+				wp_send_json_error( [ 'message' => esc_html__( 'Registration is currently disabled on this network.', 'elementor-must-have-addons' ) ] );
+			}
+
+			// Resolve signup type vs network policy (same rules as wp-signup.php).
+			// user = new accounts only | blog = logged-in users create sites | all = both
+			$network_allows_blog = in_array( $active_signup, [ 'blog', 'all' ], true );
+			$network_allows_user = in_array( $active_signup, [ 'user', 'all' ], true );
+
+			if ( 'blog' === $active_signup && ! is_user_logged_in() ) {
+				wp_send_json_error( [ 'message' => esc_html__( 'You must be logged in to create a new site on this network.', 'elementor-must-have-addons' ) ] );
+			}
+
+			if ( 'all' !== $active_signup && 'user' === $active_signup ) {
+				$signup_for = 'user';
+			} elseif ( 'blog' === $active_signup ) {
+				$signup_for = 'blog';
+			} elseif ( 'blog' === $multisite_signup_type ) {
+				$signup_for = 'blog';
+			} elseif ( 'user' === $multisite_signup_type ) {
+				$signup_for = 'user';
+			} elseif ( ! in_array( $signup_for, [ 'user', 'blog' ], true ) ) {
+				$signup_for = 'user';
+			}
+
+			if ( 'blog' === $signup_for && ! $network_allows_blog ) {
+				wp_send_json_error( [ 'message' => esc_html__( 'Site registration is not allowed on this network.', 'elementor-must-have-addons' ) ] );
+			}
+			if ( 'user' === $signup_for && ! $network_allows_user ) {
+				wp_send_json_error( [ 'message' => esc_html__( 'User registration is not allowed on this network.', 'elementor-must-have-addons' ) ] );
+			}
+
+			// Validate username + email with core Multisite rules.
+			$result = wpmu_validate_user_signup( $user_login, $user_email );
+			if ( is_wp_error( $result['errors'] ) && $result['errors']->has_errors() ) {
+				wp_send_json_error( [ 'message' => $result['errors']->get_error_message() ] );
+			}
+			$user_login = $result['user_name'];
+			$user_email = $result['user_email'];
+
+			$domain = '';
+			$path   = '';
+			$title  = '';
+
+			if ( 'blog' === $signup_for ) {
+				if ( empty( $blogname ) ) {
+					wp_send_json_error( [ 'message' => esc_html__( 'Site name is required.', 'elementor-must-have-addons' ) ] );
+				}
+				if ( empty( $blog_title ) ) {
+					wp_send_json_error( [ 'message' => esc_html__( 'Site title is required.', 'elementor-must-have-addons' ) ] );
+				}
+
+				$blog_result = wpmu_validate_blog_signup( $blogname, $blog_title );
+				if ( is_wp_error( $blog_result['errors'] ) && $blog_result['errors']->has_errors() ) {
+					wp_send_json_error( [ 'message' => $blog_result['errors']->get_error_message() ] );
+				}
+
+				$domain = $blog_result['domain'];
+				$path   = $blog_result['path'];
+				$title  = $blog_result['blog_title'];
+			}
+
+			// Create user immediately (admin-style), not pending signup activation.
+			$random_password = wp_generate_password( 24, true, true );
+			$user_id         = wpmu_create_user( $user_login, $random_password, $user_email );
+
+			if ( ! $user_id ) {
+				wp_send_json_error( [ 'message' => esc_html__( 'Could not create user. Username or email may already be taken.', 'elementor-must-have-addons' ) ] );
+			}
+
+			// Optional site creation (same idea as admin creating a site for a user).
+			if ( 'blog' === $signup_for ) {
+				if ( ! function_exists( 'wpmu_create_blog' ) ) {
+					require_once ABSPATH . WPINC . '/ms-functions.php';
+				}
+
+				$blog_id = wpmu_create_blog(
+					$domain,
+					$path,
+					$title,
+					$user_id,
+					[ 'public' => 1 ],
+					get_current_network_id()
+				);
+
+				if ( is_wp_error( $blog_id ) ) {
+					// Keep the user account; report site error clearly.
+					wp_send_json_error(
+						[
+							'message' => sprintf(
+								/* translators: %s: error message */
+								esc_html__( 'User was created, but site creation failed: %s. They can still set a password from the email.', 'elementor-must-have-addons' ),
+								$blog_id->get_error_message()
+							),
+						]
+					);
+				}
+			}
+
+			// Same email type as Network Admin → Users → Add New User (set password link).
+			self::send_set_password_notification( $user_id );
+
+			$logged = [
+				'user_login' => $user_login,
+				'user_email' => $user_email,
+				'signup_for' => $signup_for,
+			];
+			if ( 'blog' === $signup_for ) {
+				$logged['blogname']   = $blogname;
+				$logged['blog_title'] = $blog_title;
+			}
+
+			self::log_submission( $form_id, $form_name, $logged );
+			wp_send_json_success( [ 'message' => $success_msg ] );
+		}
+
+		// ——— Single site: native register_new_user (email with set-password link) ———
+		if ( ! get_option( 'users_can_register' ) ) {
+			wp_send_json_error( [ 'message' => esc_html__( 'Registration is currently disabled.', 'elementor-must-have-addons' ) ] );
+		}
+
+		if ( ! function_exists( 'register_new_user' ) ) {
+			require_once ABSPATH . 'wp-includes/user.php';
+		}
+
+		$user_id = register_new_user( $user_login, $user_email );
+		if ( is_wp_error( $user_id ) ) {
+			wp_send_json_error( [ 'message' => $user_id->get_error_message() ] );
+		}
+
+		self::log_submission(
+			$form_id,
+			$form_name,
+			[
+				'user_login' => $user_login,
+				'user_email' => $user_email,
+			]
+		);
+
+		wp_send_json_success( [ 'message' => $success_msg ] );
+	}
+
+	/**
+	 * Email the user a "set your password" link (wp-login.php?action=rp),
+	 * matching Network Admin → Add User behavior — not the Multisite activation page.
+	 *
+	 * @param int $user_id User ID.
+	 */
+	private static function send_set_password_notification( $user_id ) {
+		$user_id = (int) $user_id;
+		if ( $user_id <= 0 ) {
+			return;
+		}
+
+		// Prefer core helper used by admin "Send User Notification".
+		if ( function_exists( 'wp_send_new_user_notifications' ) ) {
+			wp_send_new_user_notifications( $user_id, 'user' );
+			return;
+		}
+
+		// Fallback for older WP.
+		if ( function_exists( 'wp_new_user_notification' ) ) {
+			wp_new_user_notification( $user_id, null, 'user' );
+		}
+	}
+
+	/**
+	 * Log a form submission row.
+	 *
+	 * @param string $form_id   Form ID.
+	 * @param string $form_name Form name.
+	 * @param array  $fields    Fields to store.
+	 */
+	private static function log_submission( $form_id, $form_name, $fields ) {
+		self::maybe_create_table();
+		global $wpdb;
+		$table_name = $wpdb->prefix . 'emha_submissions';
+		$user_ip    = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+
+		$wpdb->insert(
+			$table_name,
+			[
+				'form_id'   => $form_id,
+				'form_name' => $form_name,
+				'fields'    => wp_json_encode( $fields ),
+				'user_ip'   => $user_ip,
+			],
+			[ '%s', '%s', '%s', '%s' ]
 		);
 	}
 
